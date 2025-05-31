@@ -30,9 +30,9 @@
         "projectId": "7f8649b1-237c-42ba-8218-0408cfc19694"
       }
     },
-    "owner": "randhipp"
-  },
-  "android": {
-    "package": "com.luminawsoftware.moneytalk"
+    "owner": "randhipp",
+    "android": {
+      "package": "com.luminawsoftware.moneytalk"
+    }
   }
 }
