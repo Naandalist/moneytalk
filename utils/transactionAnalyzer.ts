@@ -86,7 +86,7 @@ Respond in JSON format only:
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4.1-nano-2025-04-14',
       messages: [
         {
           role: 'system',
