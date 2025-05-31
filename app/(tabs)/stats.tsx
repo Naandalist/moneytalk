@@ -8,11 +8,12 @@ import { Dimensions } from 'react-native';
 import TransactionList from '@/components/TransactionList';
 import { categoryColors } from '@/utils/categories';
 import { formatCurrency } from '@/utils/formatters';
+import { useFocusEffect } from '@react-navigation/native';
 
 const screenWidth = Dimensions.get('window').width;
 
 export default function StatsScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { getTransactionsByPeriod, getTransactionsByCategory } = useDatabase();
 
@@ -27,6 +28,13 @@ export default function StatsScreen() {
   useEffect(() => {
     loadData();
   }, [period]);
+
+  // Add focus effect to reload data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadData();
+    }, [period])
+  );
 
   const loadData = async () => {
     try {
@@ -227,11 +235,12 @@ export default function StatsScreen() {
         {categoryData.length > 0 ? (
           <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
             <PieChart
+              key={`pie-chart-${isDark}`} // Force re-render on theme change
               data={categoryData}
               width={screenWidth - 32}
               height={220}
               chartConfig={{
-                color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                color: (opacity = 1) => `rgba(${isDark ? '255, 255, 255' : '33, 33, 33'}, ${opacity})`,
                 labelColor: (opacity = 1) => colors.text,
               }}
               accessor="amount"
@@ -253,6 +262,7 @@ export default function StatsScreen() {
 
         <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
           <LineChart
+            key={`line-chart-${isDark}`} // Force re-render on theme change
             data={timelineData}
             width={screenWidth - 32}
             height={220}
