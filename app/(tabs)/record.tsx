@@ -15,7 +15,7 @@ import { Transaction } from '@/types/transaction';
 const transcribeAudio = async (uri: string): Promise<string> => {
   // Simulate API call delay
   await new Promise(resolve => setTimeout(resolve, 2000));
-  
+
   // Return mock transcription - in real implementation, this would come from Whisper API or similar
   return "I spent 24 dollars on lunch today";
 };
@@ -24,16 +24,16 @@ export default function RecordScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { addTransaction } = useDatabase();
-  
+
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [transcription, setTranscription] = useState('');
   const [parsedTransaction, setParsedTransaction] = useState<Transaction | null>(null);
-  
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   useEffect(() => {
     return () => {
       if (timerRef.current) {
@@ -41,7 +41,7 @@ export default function RecordScreen() {
       }
     };
   }, []);
-  
+
   async function startRecording() {
     try {
       // Request permissions
@@ -50,72 +50,79 @@ export default function RecordScreen() {
         Alert.alert('Permission required', 'You need to grant audio recording permissions to use this feature.');
         return;
       }
-      
+
       // Configure audio session
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
-      
+
       // Haptic feedback
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      
+
       // Create and prepare recording
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
-      
+
       setRecording(recording);
       setIsRecording(true);
       setRecordingDuration(0);
-      
+
       // Start duration timer
       timerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
-      
+
     } catch (err) {
       console.error('Failed to start recording', err);
       Alert.alert('Recording failed', 'There was an error starting the recording.');
     }
   }
-  
+
   async function stopRecording() {
     if (!recording) return;
-    
+
     try {
       // Stop the recording
       setIsRecording(false);
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
-      
+
       // Haptic feedback
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      
+
       await recording.stopAndUnloadAsync();
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
       });
-      
+
       // Get recording URI
       const uri = recording.getURI();
       if (!uri) {
         throw new Error('Recording URI is null');
       }
-      
+
       // Process the recording
       setIsProcessing(true);
-      
+
       // In a real app, you would send the audio file to a transcription API like Whisper
       try {
         // Transcribe audio
         const text = await transcribeAudio(uri);
         setTranscription(text);
-        
+
         // Analyze the transcription to extract transaction details
         const parsedResult = await analyzeTransaction(text);
-        setParsedTransaction(parsedResult);
+
+        // Validate the parsed result before setting state
+        if (parsedResult && typeof parsedResult.amount === 'number' && parsedResult.category) {
+          setParsedTransaction(parsedResult);
+        } else {
+          console.error('Invalid transaction result:', parsedResult);
+          Alert.alert('Processing Error', 'Failed to extract transaction details. Please try again.');
+        }
       } catch (error) {
         console.error('Error processing audio:', error);
         Alert.alert('Processing Error', 'Failed to process your recording. Please try again.');
@@ -123,7 +130,7 @@ export default function RecordScreen() {
         setIsProcessing(false);
         setRecording(null);
       }
-      
+
     } catch (err) {
       console.error('Failed to stop recording', err);
       Alert.alert('Error', 'Failed to stop recording');
@@ -131,18 +138,18 @@ export default function RecordScreen() {
       setRecording(null);
     }
   }
-  
+
   const handleSaveTransaction = async (transaction: Transaction) => {
     try {
       await addTransaction(transaction);
-      
+
       // Success feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
+
       // Reset state
       setTranscription('');
       setParsedTransaction(null);
-      
+
       // Show success message
       Alert.alert('Success', 'Transaction saved successfully!');
     } catch (error) {
@@ -150,24 +157,24 @@ export default function RecordScreen() {
       Alert.alert('Error', 'Failed to save transaction. Please try again.');
     }
   };
-  
+
   const handleCancel = () => {
     setTranscription('');
     setParsedTransaction(null);
   };
-  
+
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
-  
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <Text style={[styles.header, { color: colors.text }]}>Record Transaction</Text>
-      
+
       {/* When we have a parsed transaction, show confirmation screen */}
-      {parsedTransaction ? (
+      {parsedTransaction && parsedTransaction.amount !== undefined && parsedTransaction.category ? (
         <TransactionConfirmation
           transaction={parsedTransaction}
           onSave={handleSaveTransaction}
@@ -202,8 +209,8 @@ export default function RecordScreen() {
                 {isRecording ? 'Recording...' : 'Record a Transaction'}
               </Text>
               <Text style={[styles.instructionsText, { color: colors.textSecondary }]}>
-                {isRecording 
-                  ? 'Speak clearly about your transaction.' 
+                {isRecording
+                  ? 'Speak clearly about your transaction.'
                   : 'Tap the microphone and describe your transaction.\nExample: "I spent $24 on lunch today" or\n"I received $2000 from my salary"'}
               </Text>
             </View>
@@ -218,7 +225,7 @@ export default function RecordScreen() {
               </Text>
             </View>
           )}
-          
+
           {/* Recording button */}
           {!isProcessing && (
             <TouchableOpacity
@@ -236,7 +243,7 @@ export default function RecordScreen() {
               )}
             </TouchableOpacity>
           )}
-          
+
           {isRecording && (
             <Text style={[styles.tapToStop, { color: colors.textSecondary }]}>
               Tap to stop recording

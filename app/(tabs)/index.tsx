@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CirclePlus as PlusCircle } from 'lucide-react-native';
 import { router } from 'expo-router';
 import SummaryCard from '@/components/SummaryCard';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 export default function HomeScreen() {
   const { getRecentTransactions, getBalance } = useDatabase();
@@ -16,17 +18,19 @@ export default function HomeScreen() {
   const [transactions, setTransactions] = useState([]);
   const [balance, setBalance] = useState({ income: 0, expenses: 0 });
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     const recentTransactions = await getRecentTransactions(5);
     setTransactions(recentTransactions);
-    
+
     const balanceData = await getBalance();
     setBalance(balanceData);
-  };
+  }, [getRecentTransactions, getBalance]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const navigateToRecord = () => {
     router.push('/record');
@@ -42,31 +46,31 @@ export default function HomeScreen() {
           Your voice-powered finance tracker
         </Text>
       </View>
-      
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <SummaryCard 
+        <SummaryCard
           balance={formatCurrency(balance.income - balance.expenses)}
           income={formatCurrency(balance.income)}
           expenses={formatCurrency(balance.expenses)}
         />
-        
+
         <View style={styles.transactionsHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Transactions</Text>
           <TouchableOpacity onPress={() => router.push('/stats')}>
             <Text style={[styles.seeAll, { color: colors.primary }]}>See All</Text>
           </TouchableOpacity>
         </View>
-        
+
         {transactions.length > 0 ? (
           transactions.map((transaction) => (
-            <TransactionCard 
-              key={transaction.id.toString()} 
-              transaction={transaction} 
-              onPress={() => {}}
+            <TransactionCard
+              key={transaction.id.toString()}
+              transaction={transaction}
+              onPress={() => { }}
             />
           ))
         ) : (
@@ -77,9 +81,9 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
-      
-      <TouchableOpacity 
-        style={[styles.fab, { backgroundColor: colors.primary }]} 
+
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: colors.primary }]}
         onPress={navigateToRecord}
       >
         <PlusCircle color={colors.white} size={28} />

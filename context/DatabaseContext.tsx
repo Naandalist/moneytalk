@@ -154,14 +154,14 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const result = await db.getFirstAsync(
         `SELECT 
           SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
-          SUM(CASE WHEN type = 'expense' THEN ABS(amount) ELSE 0 END) as expenses
+          SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expenses
          FROM transactions`
       ) as { income: number | null, expenses: number | null } | null;
 
       if (result) {
         return {
           income: result.income || 0,
-          expenses: result.expenses || 0
+          expenses: Math.abs(result.expenses || 0) // Apply ABS here instead of in SQL
         };
       } else {
         return { income: 0, expenses: 0 };
