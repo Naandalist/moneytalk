@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/context/ThemeContext';
@@ -9,7 +9,10 @@ import { useDatabase } from '@/context/DatabaseContext';
 import { analyzeTransaction } from '@/utils/transactionAnalyzer';
 import RecordingWaveform from '@/components/RecordingWaveform';
 import TransactionConfirmation from '@/components/TransactionConfirmation';
+import CustomNotification from '@/components/CustomNotification';
+import { useNotification } from '@/hooks/useNotification';
 import { Transaction } from '@/types/transaction';
+import { router } from 'expo-router';
 
 // Mock function for audio transcription - in a real app, you'd connect to an API
 const transcribeAudio = async (uri: string): Promise<string> => {
@@ -56,6 +59,13 @@ export default function RecordScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { addTransaction } = useDatabase();
+  const {
+    notification,
+    hideNotification,
+    showSuccess,
+    showError,
+    showWarning,
+  } = useNotification();
 
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -79,7 +89,10 @@ export default function RecordScreen() {
       // Request permissions
       const permission = await Audio.requestPermissionsAsync();
       if (permission.status !== 'granted') {
-        Alert.alert('Permission required', 'You need to grant audio recording permissions to use this feature.');
+        showWarning(
+          'Permission Required',
+          'You need to grant audio recording permissions to use this feature.'
+        );
         return;
       }
 
@@ -108,7 +121,7 @@ export default function RecordScreen() {
 
     } catch (err) {
       console.error('Failed to start recording', err);
-      Alert.alert('Recording failed', 'There was an error starting the recording.');
+      showError('Recording Failed', 'There was an error starting the recording.');
     }
   }
 
@@ -139,7 +152,6 @@ export default function RecordScreen() {
       // Process the recording
       setIsProcessing(true);
 
-      // In a real app, you would send the audio file to a transcription API like Whisper
       try {
         // Transcribe audio
         const text = await transcribeAudio(uri);
@@ -153,11 +165,17 @@ export default function RecordScreen() {
           setParsedTransaction(parsedResult);
         } else {
           console.error('Invalid transaction result:', parsedResult);
-          Alert.alert('Processing Error', 'Failed to extract transaction details. Please try again.');
+          showError(
+            'Processing Error',
+            'Failed to extract transaction details. Please try again.'
+          );
         }
       } catch (error) {
         console.error('Error processing audio:', error);
-        Alert.alert('Processing Error', 'Failed to process your recording. Please try again.');
+        showError(
+          'Processing Error',
+          'Failed to process your recording. Please try again.'
+        );
       } finally {
         setIsProcessing(false);
         setRecording(null);
@@ -165,7 +183,7 @@ export default function RecordScreen() {
 
     } catch (err) {
       console.error('Failed to stop recording', err);
-      Alert.alert('Error', 'Failed to stop recording');
+      showError('Error', 'Failed to stop recording');
       setIsProcessing(false);
       setRecording(null);
     }
@@ -188,12 +206,17 @@ export default function RecordScreen() {
       setTranscription('');
       setParsedTransaction(null);
 
-      // Show success message
-      Alert.alert('Success', 'Transaction saved successfully!');
+      // Show success notification
+      showSuccess('Success', 'Transaction saved successfully!', 2000);
       console.log('Saving transaction with text:', transactionWithText.description);
+
+      // Redirect to home after notification
+      setTimeout(() => {
+        router.replace('/');
+      }, 2000);
     } catch (error) {
       console.error('Error saving transaction:', error);
-      Alert.alert('Error', 'Failed to save transaction. Please try again.');
+      showError('Error', 'Failed to save transaction. Please try again.');
     }
   };
 
@@ -211,6 +234,12 @@ export default function RecordScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <Text style={[styles.header, { color: colors.text }]}>Record Transaction</Text>
+
+      {/* Custom notification */}
+      <CustomNotification
+        notification={notification}
+        onClose={hideNotification}
+      />
 
       {/* When we have a parsed transaction, show confirmation screen */}
       {parsedTransaction && parsedTransaction.amount !== undefined && parsedTransaction.category ? (
