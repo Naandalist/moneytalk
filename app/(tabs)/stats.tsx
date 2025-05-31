@@ -15,7 +15,7 @@ export default function StatsScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { getTransactionsByPeriod, getTransactionsByCategory } = useDatabase();
-  
+
   const [transactions, setTransactions] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
   const [timelineData, setTimelineData] = useState({
@@ -23,20 +23,20 @@ export default function StatsScreen() {
     datasets: [{ data: [0, 0, 0, 0, 0, 0, 0] }]
   });
   const [period, setPeriod] = useState('week'); // 'week', 'month', 'year'
-  
+
   useEffect(() => {
     loadData();
   }, [period]);
-  
+
   const loadData = async () => {
     try {
       // Get transactions for the selected period
       const periodTransactions = await getTransactionsByPeriod(period);
       setTransactions(periodTransactions);
-      
+
       // Get spending by category
       const categoryTransactions = await getTransactionsByCategory(period);
-      
+
       // Format data for pie chart
       const pieData = categoryTransactions.map(item => ({
         name: item.category,
@@ -45,49 +45,106 @@ export default function StatsScreen() {
         legendFontColor: colors.text,
         legendFontSize: 12
       }));
-      
+
       setCategoryData(pieData);
-      
-      // Format data for line chart (simple mock data for now)
-      // In a real app, you would aggregate transactions by day
+
+      // Format data for line chart using real transaction data
+      const timelineLabels = [];
+      const timelineValues = [];
+
+      if (period === 'week') {
+        // Get last 7 days
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const today = new Date();
+
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(today);
+          date.setDate(today.getDate() - i);
+          const dayName = days[date.getDay()];
+          timelineLabels.push(dayName);
+
+          // Calculate total expenses for this day
+          const dayExpenses = periodTransactions
+            .filter(t => {
+              const transactionDate = new Date(t.date);
+              return transactionDate.toDateString() === date.toDateString() && t.type === 'expense';
+            })
+            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+          timelineValues.push(dayExpenses);
+        }
+      } else if (period === 'month') {
+        // Get last 4 weeks
+        const weekLabels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+        const today = new Date();
+
+        for (let i = 3; i >= 0; i--) {
+          timelineLabels.push(weekLabels[3 - i]);
+
+          const weekStart = new Date(today);
+          weekStart.setDate(today.getDate() - (i * 7 + 6));
+          const weekEnd = new Date(today);
+          weekEnd.setDate(today.getDate() - (i * 7));
+
+          const weekExpenses = periodTransactions
+            .filter(t => {
+              const transactionDate = new Date(t.date);
+              return transactionDate >= weekStart && transactionDate <= weekEnd && t.type === 'expense';
+            })
+            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+          timelineValues.push(weekExpenses);
+        }
+      } else {
+        // Year view - show last 12 months
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const today = new Date();
+
+        for (let i = 11; i >= 0; i--) {
+          const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+          timelineLabels.push(monthNames[date.getMonth()]);
+
+          const monthExpenses = periodTransactions
+            .filter(t => {
+              const transactionDate = new Date(t.date);
+              return transactionDate.getMonth() === date.getMonth() &&
+                transactionDate.getFullYear() === date.getFullYear() &&
+                t.type === 'expense';
+            })
+            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+          timelineValues.push(monthExpenses);
+        }
+      }
+
       setTimelineData({
-        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-        datasets: [{
-          data: [
-            Math.random() * 100,
-            Math.random() * 100,
-            Math.random() * 100,
-            Math.random() * 100,
-            Math.random() * 100,
-            Math.random() * 100,
-            Math.random() * 100
-          ]
-        }]
+        labels: timelineLabels,
+        datasets: [{ data: timelineValues.length > 0 ? timelineValues : [0] }]
       });
-      
+
     } catch (error) {
       console.error('Error loading statistics:', error);
     }
   };
-  
+
   const getTotalExpenses = () => {
     return transactions
       .filter(t => t.type === 'expense')
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
   };
-  
+
   const getTotalIncome = () => {
     return transactions
       .filter(t => t.type === 'income')
       .reduce((sum, t) => sum + t.amount, 0);
   };
-  
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <Text style={[styles.header, { color: colors.text }]}>
         Statistics
       </Text>
-      
+
       {/* Period selector */}
       <View style={styles.periodSelector}>
         <TouchableOpacity
@@ -106,7 +163,7 @@ export default function StatsScreen() {
             Week
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[
             styles.periodButton,
@@ -123,7 +180,7 @@ export default function StatsScreen() {
             Month
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[
             styles.periodButton,
@@ -141,9 +198,9 @@ export default function StatsScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-      
-      <ScrollView 
-        style={styles.scrollView} 
+
+      <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -155,7 +212,7 @@ export default function StatsScreen() {
               {formatCurrency(getTotalExpenses())}
             </Text>
           </View>
-          
+
           <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Income</Text>
             <Text style={[styles.summaryValue, { color: colors.success }]}>
@@ -163,10 +220,10 @@ export default function StatsScreen() {
             </Text>
           </View>
         </View>
-        
+
         {/* Category breakdown */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Spending by Category</Text>
-        
+
         {categoryData.length > 0 ? (
           <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
             <PieChart
@@ -190,10 +247,10 @@ export default function StatsScreen() {
             </Text>
           </View>
         )}
-        
+
         {/* Timeline chart */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Spending Timeline</Text>
-        
+
         <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
           <LineChart
             data={timelineData}
@@ -222,12 +279,12 @@ export default function StatsScreen() {
             }}
           />
         </View>
-        
+
         {/* Transactions list */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           Transactions
         </Text>
-        
+
         <TransactionList transactions={transactions} />
       </ScrollView>
     </View>
