@@ -235,7 +235,7 @@ export default function StatsScreen() {
         {categoryData.length > 0 ? (
           <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
             <PieChart
-              key={`pie-chart-${isDark}`} // Force re-render on theme change
+              key={`pie-chart-${isDark}`}
               data={categoryData}
               width={screenWidth - 32}
               height={220}
@@ -262,7 +262,7 @@ export default function StatsScreen() {
 
         <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
           <LineChart
-            key={`line-chart-${isDark}`} // Force re-render on theme change
+            key={`line-chart-${isDark}`}
             data={timelineData}
             width={screenWidth - 32}
             height={220}
