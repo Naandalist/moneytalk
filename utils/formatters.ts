@@ -7,8 +7,8 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export function formatDate(dateString: string): string {
-  const date = new Date(dateString);
+export function formatDate(string: string): string {
+  const date = new Date(string);
   
   // Check if date is valid
   if (isNaN(date.getTime())) {
@@ -20,8 +20,15 @@ export function formatDate(dateString: string): string {
                   date.getMonth() === now.getMonth() && 
                   date.getFullYear() === now.getFullYear();
   
+  // Format time (hour and minute)
+  const timeString = date.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    hour12: true 
+  });
+  
   if (isToday) {
-    return 'Today';
+    return `Today ${timeString}`;
   }
   
   const isYesterday = date.getDate() === now.getDate() - 1 && 
@@ -29,16 +36,18 @@ export function formatDate(dateString: string): string {
                       date.getFullYear() === now.getFullYear();
   
   if (isYesterday) {
-    return 'Yesterday';
+    return `Yesterday ${timeString}`;
   }
   
-  // If it's within the current year, show just the month and day
+  // If it's within the current year, show just the month and day with time
   const isThisYear = date.getFullYear() === now.getFullYear();
   
   if (isThisYear) {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const dateString = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${dateString} ${timeString}`;
   }
   
-  // Otherwise show the full date
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  // Otherwise show the full date with time
+  const dateString = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return `${dateString} ${timeString}`;
 }

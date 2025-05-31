@@ -27,6 +27,13 @@ export default function TransactionConfirmation({
     });
   };
   
+  const updateDescription = (text: string) => {
+    setEditedTransaction({
+      ...editedTransaction,
+      description: text,
+    });
+  };
+  
   const toggleTransactionType = () => {
     const newType = editedTransaction.type === 'expense' ? 'income' : 'expense';
     setEditedTransaction({
@@ -115,6 +122,24 @@ export default function TransactionConfirmation({
               placeholderTextColor={colors.textSecondary}
             />
           </View>
+        </View>
+        
+        {/* Description Input */}
+        <View style={styles.descriptionContainer}>
+          <Text style={[styles.descriptionLabel, { color: colors.textSecondary }]}>Description</Text>
+          <TextInput
+            style={[
+              styles.descriptionInput, 
+              { color: colors.text, borderColor: colors.border, backgroundColor: colors.cardAlt }
+            ]}
+            value={editedTransaction.description || ''}
+            onChangeText={updateDescription}
+            placeholder="Add a note about this transaction..."
+            placeholderTextColor={colors.textSecondary}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
         </View>
         
         {/* Category Selection */}
@@ -229,6 +254,22 @@ const styles = StyleSheet.create({
     fontSize: 24,
     paddingVertical: 8,
     borderBottomWidth: 1,
+  },
+  descriptionContainer: {
+    marginBottom: 20,
+  },
+  descriptionLabel: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  descriptionInput: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    minHeight: 80,
   },
   sectionContainer: {
     marginBottom: 16,

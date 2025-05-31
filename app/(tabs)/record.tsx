@@ -173,7 +173,13 @@ export default function RecordScreen() {
 
   const handleSaveTransaction = async (transaction: Transaction) => {
     try {
-      await addTransaction(transaction);
+      // Ensure the original transcription is preserved in the description
+      const transactionWithText = {
+        ...transaction,
+        description: transcription || transaction.description || ''
+      };
+
+      await addTransaction(transactionWithText);
 
       // Success feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -184,6 +190,7 @@ export default function RecordScreen() {
 
       // Show success message
       Alert.alert('Success', 'Transaction saved successfully!');
+      console.log('Saving transaction with text:', transactionWithText.description);
     } catch (error) {
       console.error('Error saving transaction:', error);
       Alert.alert('Error', 'Failed to save transaction. Please try again.');

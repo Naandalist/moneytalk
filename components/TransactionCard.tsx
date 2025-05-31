@@ -13,11 +13,11 @@ type TransactionCardProps = {
 export default function TransactionCard({ transaction, onPress }: TransactionCardProps) {
   const { colors } = useTheme();
   const CategoryIcon = getCategoryIcon(transaction.category);
-  
+
   const isExpense = transaction.type === 'expense';
   const amountColor = isExpense ? colors.error : colors.success;
   const amountPrefix = isExpense ? '-' : '+';
-  
+
   return (
     <TouchableOpacity
       style={[styles.container, { backgroundColor: colors.card }]}
@@ -26,16 +26,21 @@ export default function TransactionCard({ transaction, onPress }: TransactionCar
       <View style={[styles.iconContainer, { backgroundColor: colors.cardAlt }]}>
         <CategoryIcon size={24} color={colors.primary} />
       </View>
-      
+
       <View style={styles.details}>
         <Text style={[styles.category, { color: colors.text }]}>
           {transaction.category}
         </Text>
+        {transaction.description && (
+          <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={2}>
+            {transaction.description}
+          </Text>
+        )}
         <Text style={[styles.date, { color: colors.textSecondary }]}>
           {formatDate(transaction.date)}
         </Text>
       </View>
-      
+
       <Text style={[styles.amount, { color: amountColor }]}>
         {amountPrefix}{formatCurrency(Math.abs(transaction.amount))}
       </Text>
@@ -66,10 +71,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     fontSize: 16,
   },
+  description: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 13,
+    marginTop: 2,
+    lineHeight: 18,
+  },
   date: {
     fontFamily: 'Inter-Regular',
     fontSize: 14,
-    marginTop: 2,
+    marginTop: 4,
   },
   amount: {
     fontFamily: 'Inter-Bold',
