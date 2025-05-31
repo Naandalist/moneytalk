@@ -5,18 +5,8 @@ export const useNotification = () => {
   const [notification, setNotification] = useState<NotificationData | null>(null);
 
   const showNotification = useCallback(
-    (
-      type: NotificationType,
-      title: string,
-      message: string,
-      duration: number = 3000
-    ) => {
-      setNotification({
-        type,
-        title,
-        message,
-        duration,
-      });
+    (notificationData: NotificationData) => {
+      setNotification(notificationData);
     },
     []
   );
@@ -27,28 +17,49 @@ export const useNotification = () => {
 
   const showSuccess = useCallback(
     (title: string, message: string, duration?: number) => {
-      showNotification('success', title, message, duration);
+      showNotification({
+        type: 'success',
+        title,
+        message,
+        duration,
+      });
     },
     [showNotification]
   );
 
   const showError = useCallback(
     (title: string, message: string, duration?: number) => {
-      showNotification('error', title, message, duration);
+      showNotification({
+        type: 'error',
+        title,
+        message,
+        duration,
+      });
     },
     [showNotification]
   );
 
   const showWarning = useCallback(
-    (title: string, message: string, duration?: number) => {
-      showNotification('warning', title, message, duration);
+    (title: string, message: string, duration?: number, actions?: NotificationData['actions']) => {
+      showNotification({
+        type: 'warning',
+        title,
+        message,
+        duration,
+        actions,
+      });
     },
     [showNotification]
   );
 
   const showInfo = useCallback(
     (title: string, message: string, duration?: number) => {
-      showNotification('info', title, message, duration);
+      showNotification({
+        type: 'info',
+        title,
+        message,
+        duration,
+      });
     },
     [showNotification]
   );

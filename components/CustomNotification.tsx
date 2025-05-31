@@ -4,12 +4,16 @@ import { useTheme } from '@/context/ThemeContext';
 import { CheckCircle, XCircle, AlertCircle, X } from 'lucide-react-native';
 
 export type NotificationType = 'success' | 'error' | 'warning' | 'info';
-
 export interface NotificationData {
     type: NotificationType;
     title: string;
     message: string;
-    duration?: number; // Auto-hide duration in milliseconds, 0 means no auto-hide
+    duration?: number;
+    actions?: {
+        label: string;
+        onPress: () => void;
+        style?: 'default' | 'destructive' | 'cancel';
+    }[];
 }
 
 interface CustomNotificationProps {
@@ -142,6 +146,40 @@ export default function CustomNotification({ notification, onClose }: CustomNoti
                     <X size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
             </View>
+            {notification.actions && (
+                <View style={styles.actionsContainer}>
+                    {notification.actions.map((action, index) => (
+                        <TouchableOpacity
+                            key={index}
+                            style={[
+                                styles.actionButton,
+                                {
+                                    backgroundColor: action.style === 'destructive' ? colors.error :
+                                        action.style === 'cancel' ? colors.cardAlt : colors.primary,
+                                },
+                            ]}
+                            onPress={() => {
+                                action.onPress();
+                                if (action.style === 'destructive') {
+                                    // For delete actions, show success notification for 3 seconds
+                                    setTimeout(() => {
+                                        hideNotification();
+                                    }, 3000);
+                                } else if (action.style !== 'cancel') {
+                                    hideNotification();
+                                }
+                            }}
+                        >
+                            <Text style={[
+                                styles.actionButtonText,
+                                { color: action.style === 'cancel' ? colors.text : colors.white }
+                            ]}>
+                                {action.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
         </Animated.View>
     );
 }
@@ -188,5 +226,22 @@ const styles = StyleSheet.create({
         marginLeft: 12,
         marginTop: 2,
         padding: 4,
+    },
+    actionsContainer: {
+        flexDirection: 'row',
+        marginTop: 2,
+        padding: 8,
+        gap: 16,
+    },
+    actionButton: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        flex: 1,
+    },
+    actionButtonText: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 14,
+        textAlign: 'center',
     },
 });

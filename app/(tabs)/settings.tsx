@@ -1,43 +1,65 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Moon, Sun, Trash2, RefreshCcw, Database, Info } from 'lucide-react-native';
 import { useDatabase } from '@/context/DatabaseContext';
+import { useNotification } from '@/hooks/useNotification';
+import CustomNotification from '@/components/CustomNotification';
 
 export default function SettingsScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const { clearAllTransactions } = useDatabase();
+  const { notification, showWarning, showInfo, showSuccess, showError, hideNotification } = useNotification();
 
   const handleClearData = () => {
-    Alert.alert(
+    showWarning(
       'Clear All Data',
       'Are you sure you want to delete all transactions? This action cannot be undone.',
+      0,
       [
         {
-          text: 'Cancel',
+          label: 'Cancel',
           style: 'cancel',
+          onPress: () => hideNotification(),
         },
         {
-          text: 'Delete',
-          onPress: async () => {
-            try {
-              await clearAllTransactions();
-              Alert.alert('Success', 'All transactions have been deleted.');
-            } catch (error) {
-              console.error('Error clearing data:', error);
-              Alert.alert('Error', 'Failed to clear data. Please try again.');
-            }
-          },
+          label: 'Delete',
           style: 'destructive',
+          onPress: confirmClearData,
         },
       ]
     );
   };
 
+  const confirmClearData = async () => {
+    try {
+      await clearAllTransactions();
+      hideNotification();
+      showSuccess('Success', 'All transactions have been deleted.');
+    } catch (error) {
+      console.error('Error clearing data:', error);
+      hideNotification();
+      showError('Error', 'Failed to clear data. Please try again.');
+    }
+  };
+
+  const handleExportData = () => {
+    showInfo('Coming Soon', 'This feature will be available in a future update.');
+  };
+
+  const handleSyncData = () => {
+    showInfo('Coming Soon', 'This feature will be available in a future update.');
+  };
+
+  const handleAbout = () => {
+    showInfo('About', 'MoneyTalk v1.0.0\nA voice-powered expense tracker.', 5000);
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
+      <CustomNotification notification={notification} onClose={hideNotification} />
       <Text style={[styles.header, { color: colors.text }]}>Settings</Text>
 
       <ScrollView style={styles.scrollView}>
@@ -67,7 +89,7 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={[styles.settingRow, { backgroundColor: colors.card }]}
-            onPress={() => Alert.alert('Coming Soon', 'This feature will be available in a future update.')}
+            onPress={handleExportData}
           >
             <View style={styles.settingLabelContainer}>
               <Database size={20} color={colors.primary} style={styles.settingIcon} />
@@ -77,7 +99,7 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={[styles.settingRow, { backgroundColor: colors.card }]}
-            onPress={() => Alert.alert('Coming Soon', 'This feature will be available in a future update.')}
+            onPress={handleSyncData}
           >
             <View style={styles.settingLabelContainer}>
               <RefreshCcw size={20} color={colors.primary} style={styles.settingIcon} />
@@ -101,7 +123,7 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={[styles.settingRow, { backgroundColor: colors.card }]}
-            onPress={() => Alert.alert('About', 'MoneyTalk v1.0.0\nA voice-powered expense tracker.')}
+            onPress={handleAbout}
           >
             <View style={styles.settingLabelContainer}>
               <Info size={20} color={colors.primary} style={styles.settingIcon} />
