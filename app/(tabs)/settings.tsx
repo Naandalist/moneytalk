@@ -9,7 +9,7 @@ export default function SettingsScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const { clearAllTransactions } = useDatabase();
-  
+
   const handleClearData = () => {
     Alert.alert(
       'Clear All Data',
@@ -35,15 +35,15 @@ export default function SettingsScreen() {
       ]
     );
   };
-  
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <Text style={[styles.header, { color: colors.text }]}>Settings</Text>
-      
+
       <ScrollView style={styles.scrollView}>
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Appearance</Text>
-          
+
           <View style={[styles.settingRow, { backgroundColor: colors.card }]}>
             <View style={styles.settingLabelContainer}>
               {isDark ? (
@@ -61,11 +61,11 @@ export default function SettingsScreen() {
             />
           </View>
         </View>
-        
+
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Data Management</Text>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.settingRow, { backgroundColor: colors.card }]}
             onPress={() => Alert.alert('Coming Soon', 'This feature will be available in a future update.')}
           >
@@ -74,8 +74,8 @@ export default function SettingsScreen() {
               <Text style={[styles.settingLabel, { color: colors.text }]}>Export Data</Text>
             </View>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.settingRow, { backgroundColor: colors.card }]}
             onPress={() => Alert.alert('Coming Soon', 'This feature will be available in a future update.')}
           >
@@ -84,8 +84,8 @@ export default function SettingsScreen() {
               <Text style={[styles.settingLabel, { color: colors.text }]}>Sync with Cloud</Text>
             </View>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.settingRow, { backgroundColor: colors.card }]}
             onPress={handleClearData}
           >
@@ -95,17 +95,17 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
         </View>
-        
+
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.settingRow, { backgroundColor: colors.card }]}
-            onPress={() => Alert.alert('About', 'MoneyVoice v1.0.0\nA voice-powered expense tracker.')}
+            onPress={() => Alert.alert('About', 'MoneyTalk v1.0.0\nA voice-powered expense tracker.')}
           >
             <View style={styles.settingLabelContainer}>
               <Info size={20} color={colors.primary} style={styles.settingIcon} />
-              <Text style={[styles.settingLabel, { color: colors.text }]}>About MoneyVoice</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>About MoneyTalk</Text>
             </View>
           </TouchableOpacity>
         </View>

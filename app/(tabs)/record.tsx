@@ -42,7 +42,6 @@ const transcribeAudio = async (uri: string): Promise<string> => {
     }
 
     const result = await response.json();
-    console.log('Transcription result:', result.text);
     return result.text || 'No transcription available';
 
   } catch (error) {
@@ -208,7 +207,6 @@ export default function RecordScreen() {
 
       // Show success notification
       showSuccess('Success', 'Transaction saved successfully!', 2000);
-      console.log('Saving transaction with text:', transactionWithText.description);
 
       // Redirect to home after notification
       setTimeout(() => {

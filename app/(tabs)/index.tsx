@@ -40,7 +40,7 @@ export default function HomeScreen() {
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>
-          Money<Text style={{ color: colors.primary }}>Voice</Text>
+          Money<Text style={{ color: colors.primary }}>Talk</Text>
         </Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           Your voice-powered finance tracker
