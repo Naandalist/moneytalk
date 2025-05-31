@@ -1,8 +1,7 @@
-import { Transaction } from '@/types/transaction';
+import { Transaction } from '../types/transaction';
 import { categoryList } from './categories';
 
-// In a real app, this would connect to an AI service like OpenAI
-// This is a simplified mock implementation
+// OpenAI API integration for transaction analysis
 export async function analyzeTransaction(transcription: string): Promise<Transaction> {
   // Default transaction
   const transaction: Transaction = {
@@ -13,57 +12,179 @@ export async function analyzeTransaction(transcription: string): Promise<Transac
     description: transcription,
     date: new Date().toISOString()
   };
-  
-  // Simple word matching for demo purposes
-  const text = transcription.toLowerCase();
-  
-  // Check for expense vs income keywords
-  if (text.includes('received') || 
-      text.includes('earned') || 
-      text.includes('salary') || 
-      text.includes('income') ||
-      text.includes('got paid')) {
-    transaction.type = 'income';
-  } else {
-    transaction.type = 'expense';
-  }
-  
-  // Extract amount - look for numbers
-  const amountMatch = text.match(/\$?\s?(\d+(\.\d+)?)/);
-  if (amountMatch) {
-    transaction.amount = parseFloat(amountMatch[1]);
+
+  try {
+    // Use OpenAI to analyze transaction type and category
+    const analysis = await analyzeWithOpenAI(transcription);
+    
+    // Apply OpenAI analysis results
+    transaction.type = analysis.type;
+    transaction.category = analysis.category;
+    transaction.amount = analysis.amount;
     
     // Make amount negative for expenses
-    if (transaction.type === 'expense') {
+    if (transaction.type === 'expense' && transaction.amount > 0) {
+      transaction.amount = -transaction.amount;
+    }
+    
+  } catch (error) {
+    console.error('OpenAI analysis failed, falling back to keyword matching:', error);
+    
+    // Fallback to enhanced keyword matching
+    const fallbackAnalysis = analyzeWithKeywords(transcription);
+    transaction.type = fallbackAnalysis.type;
+    transaction.category = fallbackAnalysis.category;
+    transaction.amount = fallbackAnalysis.amount;
+    
+    // Make amount negative for expenses
+    if (transaction.type === 'expense' && transaction.amount > 0) {
       transaction.amount = -transaction.amount;
     }
   }
+
+  return transaction;
+}
+
+// OpenAI API integration
+async function analyzeWithOpenAI(transcription: string): Promise<{
+  type: 'income' | 'expense';
+  category: string;
+  amount: number;
+}> {
+  const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
   
-  // Categorize based on keywords
-  if (text.includes('groceries') || text.includes('supermarket') || text.includes('food shopping')) {
-    transaction.category = 'Groceries';
-  } else if (text.includes('restaurant') || text.includes('lunch') || text.includes('dinner') || text.includes('coffee')) {
-    transaction.category = 'Dining';
-  } else if (text.includes('rent') || text.includes('mortgage') || text.includes('housing')) {
-    transaction.category = 'Housing';
-  } else if (text.includes('uber') || text.includes('lyft') || text.includes('taxi') || text.includes('bus') || text.includes('train')) {
-    transaction.category = 'Transport';
-  } else if (text.includes('doctor') || text.includes('hospital') || text.includes('medicine') || text.includes('healthcare')) {
-    transaction.category = 'Healthcare';
-  } else if (text.includes('clothes') || text.includes('shoes') || text.includes('shopping')) {
-    transaction.category = 'Shopping';
-  } else if (text.includes('school') || text.includes('tuition') || text.includes('books') || text.includes('education')) {
-    transaction.category = 'Education';
-  } else if (text.includes('salary') || text.includes('paycheck')) {
-    transaction.category = 'Salary';
-  } else if (text.includes('bill') || text.includes('utility') || text.includes('electricity') || text.includes('water') || text.includes('internet')) {
-    transaction.category = 'Bills';
-  } else if (transaction.type === 'income') {
-    transaction.category = 'Income';
+  if (!apiKey) {
+    throw new Error('OpenAI API key not found');
+  }
+
+  const availableCategories = categoryList.join(', ');
+  
+  const prompt = `Analyze this financial transaction description and extract:
+1. Transaction type (income or expense)
+2. Category from this list: ${availableCategories}
+3. Amount (number only, no currency symbols)
+
+Transaction description: "${transcription}"
+
+Support both English and Indonesian languages. Examples:
+- "I spent 50000 for groceries" → expense, Groceries, 50000
+- "Saya beli makanan 25000" → expense, Groceries, 25000
+- "Received salary 5000000" → income, Salary, 5000000
+- "Terima gaji 3000000" → income, Salary, 3000000
+
+Respond in JSON format only:
+{
+  "type": "income" or "expense",
+  "category": "category from the list",
+  "amount": number
+}`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a financial transaction analyzer. Always respond with valid JSON only.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 150
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices[0]?.message?.content;
+  
+  if (!content) {
+    throw new Error('No response from OpenAI');
+  }
+
+  try {
+    const analysis = JSON.parse(content);
+    
+    // Validate the response
+    if (!analysis.type || !analysis.category || typeof analysis.amount !== 'number') {
+      throw new Error('Invalid OpenAI response format');
+    }
+    
+    // Ensure category is in our list
+    if (!categoryList.includes(analysis.category)) {
+      analysis.category = 'Other';
+    }
+    
+    return analysis;
+  } catch (parseError) {
+    throw new Error('Failed to parse OpenAI response');
+  }
+}
+
+// Enhanced fallback keyword matching with Indonesian support
+function analyzeWithKeywords(transcription: string): {
+  type: 'income' | 'expense';
+  category: string;
+  amount: number;
+} {
+  const text = transcription.toLowerCase();
+  
+  // Enhanced patterns for income/expense detection (English + Indonesian)
+  const incomePatterns = /\b(received|earned|salary|income|got paid|gaji|terima|pendapatan|bonus|komisi|upah)\b/i;
+  const expensePatterns = /\b(spent|paid|bought|purchase|beli|bayar|buat|untuk|keluar|pengeluaran)\b/i;
+  
+  let type: 'income' | 'expense' = 'expense';
+  
+  if (incomePatterns.test(text)) {
+    type = 'income';
+  } else if (expensePatterns.test(text)) {
+    type = 'expense';
   }
   
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // Extract amount
+  let amount = 0;
+  const amountMatch = text.match(/\b(\d+(?:[.,]\d+)?)\b/);
+  if (amountMatch) {
+    amount = parseFloat(amountMatch[1].replace(',', '.'));
+  }
   
-  return transaction;
+  // Enhanced categorization with Indonesian terms
+  let category = 'Other';
+  
+  if (/\b(groceries|supermarket|food shopping|belanja|makanan|sembako|pasar)\b/i.test(text)) {
+    category = 'Groceries';
+  } else if (/\b(restaurant|lunch|dinner|coffee|makan|restoran|kafe|warung)\b/i.test(text)) {
+    category = 'Dining';
+  } else if (/\b(rent|mortgage|housing|sewa|rumah|kos|kontrakan)\b/i.test(text)) {
+    category = 'Housing';
+  } else if (/\b(uber|lyft|taxi|bus|train|ojek|angkot|transportasi|bensin)\b/i.test(text)) {
+    category = 'Transport';
+  } else if (/\b(doctor|hospital|medicine|healthcare|dokter|rumah sakit|obat|kesehatan)\b/i.test(text)) {
+    category = 'Healthcare';
+  } else if (/\b(clothes|shoes|shopping|baju|sepatu|belanja|fashion)\b/i.test(text)) {
+    category = 'Shopping';
+  } else if (/\b(school|tuition|books|education|sekolah|kuliah|buku|pendidikan)\b/i.test(text)) {
+    category = 'Education';
+  } else if (/\b(salary|paycheck|gaji|upah)\b/i.test(text)) {
+    category = 'Salary';
+  } else if (/\b(bill|utility|electricity|water|internet|tagihan|listrik|air|wifi)\b/i.test(text)) {
+    category = 'Bills';
+  } else if (type === 'income') {
+    category = 'Income';
+  }
+
+  console.log('Analyzed transaction:', { type, category, amount });
+  
+  return { type, category, amount };
 }

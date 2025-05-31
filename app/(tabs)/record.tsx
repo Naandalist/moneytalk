@@ -15,16 +15,16 @@ import { Transaction } from '@/types/transaction';
 const transcribeAudio = async (uri: string): Promise<string> => {
   try {
     const formData = new FormData();
-    
+
     formData.append('file', {
       uri: uri,
       type: 'audio/m4a',
       name: 'recording.m4a'
     } as any);
-    
+
     formData.append('model', 'whisper-1');
     formData.append('response_format', 'json');
-    
+
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
@@ -32,15 +32,16 @@ const transcribeAudio = async (uri: string): Promise<string> => {
       },
       body: formData,
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(`OpenAI API error: ${errorData.error?.message || response.status}`);
     }
-    
+
     const result = await response.json();
+    console.log('Transcription result:', result.text);
     return result.text || 'No transcription available';
-    
+
   } catch (error) {
     console.error('Transcription error:', error);
     // Fallback to mock data in development or show user-friendly error
