@@ -13,11 +13,42 @@ import { Transaction } from '@/types/transaction';
 
 // Mock function for audio transcription - in a real app, you'd connect to an API
 const transcribeAudio = async (uri: string): Promise<string> => {
-  // Simulate API call delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
-
-  // Return mock transcription - in real implementation, this would come from Whisper API or similar
-  return "I spent 24 dollars on lunch today";
+  try {
+    const formData = new FormData();
+    
+    formData.append('file', {
+      uri: uri,
+      type: 'audio/m4a',
+      name: 'recording.m4a'
+    } as any);
+    
+    formData.append('model', 'whisper-1');
+    formData.append('response_format', 'json');
+    
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY}`,
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`OpenAI API error: ${errorData.error?.message || response.status}`);
+    }
+    
+    const result = await response.json();
+    return result.text || 'No transcription available';
+    
+  } catch (error) {
+    console.error('Transcription error:', error);
+    // Fallback to mock data in development or show user-friendly error
+    if (__DEV__) {
+      return "I spent 24 dollars on lunch today"; // Keep mock for development
+    }
+    throw new Error('Unable to transcribe audio. Please try again.');
+  }
 };
 
 export default function RecordScreen() {
