@@ -13,15 +13,15 @@ import { router } from 'expo-router';
 import SummaryCard from '@/components/SummaryCard';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
-import { Transaction } from '@/types/transaction'; // Add this import
+import { Transaction } from '@/types/transaction';
 
 export default function HomeScreen() {
-  const { getRecentTransactions, getBalance, deleteTransaction } = useDatabase(); // Add deleteTransaction
+  const { getRecentTransactions, getBalance } = useDatabase();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [transactions, setTransactions] = useState([]);
   const [balance, setBalance] = useState({ income: 0, expenses: 0 });
-  const { notification, showNotification, hideNotification, showSuccess, showError } = useNotification(); // Add this line
+  const { notification, hideNotification } = useNotification();
 
   const loadData = useCallback(async () => {
     const recentTransactions = await getRecentTransactions(5);
@@ -41,31 +41,14 @@ export default function HomeScreen() {
     router.push('/record');
   };
 
-  const handleDeleteTransaction = (transaction: Transaction) => {
-    showNotification({
-      type: 'warning',
-      title: 'Delete Transaction',
-      message: `Are you sure you want to delete this ${transaction.type} of ${formatCurrency(Math.abs(transaction.amount))}?`,
-      actions: [
-        {
-          label: 'Cancel',
-          style: 'cancel',
-          onPress: () => hideNotification(),
-        },
-        {
-          label: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteTransaction(transaction.id);
-              await loadData(); // Refresh the data
-              showSuccess('Success', 'Transaction deleted successfully', 3000);
-            } catch (error) {
-              showError('Error', 'Failed to delete transaction');
-            }
-          },
-        },
-      ],
+  const handleTransactionLongPress = (transaction: Transaction) => {
+    // Navigate to transaction detail screen
+    router.push({
+      pathname: '/transaction-detail',
+      params: {
+        transactionId: transaction.id.toString(),
+        transactionData: JSON.stringify(transaction)
+      }
     });
   };
 
@@ -103,8 +86,8 @@ export default function HomeScreen() {
             <TransactionCard
               key={transaction.id.toString()}
               transaction={transaction}
-              onPress={() => { }}
-              onLongPress={handleDeleteTransaction} // Add this line
+              onPress={() => handleTransactionLongPress(transaction)}
+              onLongPress={() => handleTransactionLongPress(transaction)}
             />
           ))
         ) : (

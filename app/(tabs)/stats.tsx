@@ -46,13 +46,15 @@ export default function StatsScreen() {
       const categoryTransactions = await getTransactionsByCategory(period);
 
       // Format data for pie chart
-      const pieData = categoryTransactions.map(item => ({
-        name: item.category,
-        amount: Math.abs(item.amount),
-        color: categoryColors[item.category] || colors.accent,
-        legendFontColor: colors.text,
-        legendFontSize: 12
-      }));
+      const pieData = categoryTransactions
+        .filter(item => item.amount > 0) // Filter out zero amounts
+        .map(item => ({
+          name: item.category,
+          amount: Math.abs(item.amount),
+          color: categoryColors[item.category] || colors.accent,
+          legendFontColor: colors.text,
+          legendFontSize: 12
+        }));
 
       setCategoryData(pieData);
 
@@ -127,7 +129,11 @@ export default function StatsScreen() {
 
       setTimelineData({
         labels: timelineLabels,
-        datasets: [{ data: timelineValues.length > 0 ? timelineValues : [0] }]
+        datasets: [{
+          data: timelineValues.length > 0 && timelineValues.some(v => v > 0)
+            ? timelineValues
+            : [0]
+        }]
       });
 
     } catch (error) {
@@ -260,35 +266,43 @@ export default function StatsScreen() {
         {/* Timeline chart */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Spending Timeline</Text>
 
-        <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
-          <LineChart
-            key={`line-chart-${isDark}`}
-            data={timelineData}
-            width={screenWidth - 32}
-            height={220}
-            chartConfig={{
-              backgroundColor: colors.card,
-              backgroundGradientFrom: colors.card,
-              backgroundGradientTo: colors.card,
-              decimalPlaces: 0,
-              color: (opacity = 1) => `rgba(106, 90, 205, ${opacity})`,
-              labelColor: (opacity = 1) => colors.text,
-              style: {
-                borderRadius: 16,
-              },
-              propsForDots: {
-                r: "6",
-                strokeWidth: "2",
-                stroke: colors.primary
-              }
-            }}
-            bezier
-            style={{
-              marginVertical: 8,
-              borderRadius: 16
-            }}
-          />
-        </View>
+        {timelineData.datasets[0].data.some(value => value > 0) ? (
+          <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
+            <LineChart
+              key={`line-chart-${isDark}`}
+              data={timelineData}
+              width={screenWidth - 32}
+              height={220}
+              chartConfig={{
+                backgroundColor: colors.card,
+                backgroundGradientFrom: colors.card,
+                backgroundGradientTo: colors.card,
+                decimalPlaces: 0,
+                color: (opacity = 1) => `rgba(106, 90, 205, ${opacity})`,
+                labelColor: (opacity = 1) => colors.text,
+                style: {
+                  borderRadius: 16,
+                },
+                propsForDots: {
+                  r: "6",
+                  strokeWidth: "2",
+                  stroke: colors.primary
+                }
+              }}
+              bezier
+              style={{
+                marginVertical: 8,
+                borderRadius: 16
+              }}
+            />
+          </View>
+        ) : (
+          <View style={[styles.emptyChart, { backgroundColor: colors.card }]}>
+            <Text style={[styles.emptyChartText, { color: colors.textSecondary }]}>
+              No expense data for this period
+            </Text>
+          </View>
+        )}
 
         {/* Transactions list */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>

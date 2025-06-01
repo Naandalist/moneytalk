@@ -22,7 +22,7 @@ interface CustomNotificationProps {
 }
 
 export default function CustomNotification({ notification, onClose }: CustomNotificationProps) {
-    const { colors } = useTheme();
+    const { colors, isDark } = useTheme();
     const [fadeAnim] = useState(new Animated.Value(0));
     const [slideAnim] = useState(new Animated.Value(-100));
 
@@ -87,33 +87,45 @@ export default function CustomNotification({ notification, onClose }: CustomNoti
     };
 
     const getBackgroundColor = (type: NotificationType) => {
+        const opacity = isDark ? '30' : '15'; // More opacity in dark mode, less in light mode
         switch (type) {
             case 'success':
-                return colors.success;
+                return colors.success + opacity;
             case 'error':
-                return colors.error;
+                return colors.error + opacity;
             case 'warning':
-                return colors.warning;
+                return colors.warning + opacity;
             case 'info':
-                return colors.primary;
+                return colors.primary + opacity;
             default:
-                return colors.primary;
+                return colors.primary + opacity;
         }
     };
 
     const getBorderColor = (type: NotificationType) => {
+        const opacity = isDark ? '60' : '40'; // More opacity in dark mode
         switch (type) {
             case 'success':
-                return colors.success;
+                return colors.success + opacity;
             case 'error':
-                return colors.error;
+                return colors.error + opacity;
             case 'warning':
-                return colors.warning;
+                return colors.warning + opacity;
             case 'info':
-                return colors.primary;
+                return colors.primary + opacity;
             default:
-                return colors.primary;
+                return colors.primary + opacity;
         }
+    };
+
+    const getTextColor = (type: NotificationType) => {
+        // Use theme text colors for better readability
+        return colors.text;
+    };
+
+    const getSecondaryTextColor = (type: NotificationType) => {
+        // Use theme secondary text colors for better readability
+        return colors.textSecondary;
     };
 
     if (!notification) return null;
@@ -135,10 +147,10 @@ export default function CustomNotification({ notification, onClose }: CustomNoti
                     {getIcon(notification.type)}
                 </View>
                 <View style={styles.textContainer}>
-                    <Text style={[styles.title, { color: colors.text }]}>
+                    <Text style={[styles.title, { color: getTextColor(notification.type) }]}>
                         {notification.title}
                     </Text>
-                    <Text style={[styles.message, { color: colors.textSecondary }]}>
+                    <Text style={[styles.message, { color: getSecondaryTextColor(notification.type) }]}>
                         {notification.message}
                     </Text>
                 </View>
@@ -193,16 +205,15 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 1,
         zIndex: 1000,
-        // iOS shadow properties
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-        // Android shadow property
-        elevation: 8,
+        // Remove all shadow properties to eliminate boundary box
+        // shadowColor: '#000',
+        // shadowOffset: {
+        //     width: 0,
+        //     height: 2,
+        // },
+        // shadowOpacity: 0.08,
+        // shadowRadius: 4,
+        // elevation: 3,
     },
     content: {
         flexDirection: 'row',
