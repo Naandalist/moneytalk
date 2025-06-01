@@ -10,6 +10,7 @@ type DatabaseContextType = {
   getTransactionsByPeriod: (period: string) => Promise<Transaction[]>;
   getBalance: () => Promise<{ income: number, expenses: number }>;
   clearAllTransactions: () => Promise<void>;
+  deleteTransaction: (id: number) => Promise<void>; // Add this line
 };
 
 const DatabaseContext = createContext<DatabaseContextType>({
@@ -20,6 +21,7 @@ const DatabaseContext = createContext<DatabaseContextType>({
   getTransactionsByPeriod: async () => [],
   getBalance: async () => ({ income: 0, expenses: 0 }),
   clearAllTransactions: async () => { },
+  deleteTransaction: async () => { }, // Add this line
 });
 
 export const useDatabase = () => useContext(DatabaseContext);
@@ -179,6 +181,14 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  const deleteTransaction = async (id: number): Promise<void> => {
+    try {
+      await db.runAsync('DELETE FROM transactions WHERE id = ?', [id]);
+    } catch (error) {
+      throw error;
+    }
+  };
+
   return (
     <DatabaseContext.Provider value={{
       isReady,
@@ -187,7 +197,8 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       getTransactionsByCategory,
       getTransactionsByPeriod,
       getBalance,
-      clearAllTransactions
+      clearAllTransactions,
+      deleteTransaction, // Add this line
     }}>
       {children}
     </DatabaseContext.Provider>

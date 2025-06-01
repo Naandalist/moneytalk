@@ -1,7 +1,10 @@
+import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useDatabase } from '@/context/DatabaseContext';
 import { useTheme } from '@/context/ThemeContext';
 import TransactionCard from '@/components/TransactionCard';
+import CustomNotification from '@/components/CustomNotification'; // Add this import
+import { useNotification } from '@/hooks/useNotification'; // Add this import
 import { formatCurrency } from '@/utils/formatters';
 import { useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,13 +13,15 @@ import { router } from 'expo-router';
 import SummaryCard from '@/components/SummaryCard';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
+import { Transaction } from '@/types/transaction'; // Add this import
 
 export default function HomeScreen() {
-  const { getRecentTransactions, getBalance } = useDatabase();
+  const { getRecentTransactions, getBalance, deleteTransaction } = useDatabase(); // Add deleteTransaction
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [transactions, setTransactions] = useState([]);
   const [balance, setBalance] = useState({ income: 0, expenses: 0 });
+  const { notification, showNotification, hideNotification, showSuccess, showError } = useNotification(); // Add this line
 
   const loadData = useCallback(async () => {
     const recentTransactions = await getRecentTransactions(5);
@@ -34,6 +39,34 @@ export default function HomeScreen() {
 
   const navigateToRecord = () => {
     router.push('/record');
+  };
+
+  const handleDeleteTransaction = (transaction: Transaction) => {
+    showNotification({
+      type: 'warning',
+      title: 'Delete Transaction',
+      message: `Are you sure you want to delete this ${transaction.type} of ${formatCurrency(Math.abs(transaction.amount))}?`,
+      actions: [
+        {
+          label: 'Cancel',
+          style: 'cancel',
+          onPress: () => hideNotification(),
+        },
+        {
+          label: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteTransaction(transaction.id);
+              await loadData(); // Refresh the data
+              showSuccess('Success', 'Transaction deleted successfully', 3000);
+            } catch (error) {
+              showError('Error', 'Failed to delete transaction');
+            }
+          },
+        },
+      ],
+    });
   };
 
   return (
@@ -71,6 +104,7 @@ export default function HomeScreen() {
               key={transaction.id.toString()}
               transaction={transaction}
               onPress={() => { }}
+              onLongPress={handleDeleteTransaction} // Add this line
             />
           ))
         ) : (
@@ -88,6 +122,8 @@ export default function HomeScreen() {
       >
         <PlusCircle color={colors.white} size={28} />
       </TouchableOpacity>
+
+      <CustomNotification notification={notification} onClose={hideNotification} /> {/* Add this line */}
     </View>
   );
 }

@@ -89,30 +89,30 @@ export default function CustomNotification({ notification, onClose }: CustomNoti
     const getBackgroundColor = (type: NotificationType) => {
         switch (type) {
             case 'success':
-                return colors.success + '20';
+                return colors.success;
             case 'error':
-                return colors.error + '20';
+                return colors.error;
             case 'warning':
-                return colors.warning + '20';
+                return colors.warning;
             case 'info':
-                return colors.primary + '20';
+                return colors.primary;
             default:
-                return colors.primary + '20';
+                return colors.primary;
         }
     };
 
     const getBorderColor = (type: NotificationType) => {
         switch (type) {
             case 'success':
-                return colors.success + '40';
+                return colors.success;
             case 'error':
-                return colors.error + '40';
+                return colors.error;
             case 'warning':
-                return colors.warning + '40';
+                return colors.warning;
             case 'info':
-                return colors.primary + '40';
+                return colors.primary;
             default:
-                return colors.primary + '40';
+                return colors.primary;
         }
     };
 
@@ -193,6 +193,16 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 1,
         zIndex: 1000,
+        // iOS shadow properties
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 4,
+        },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        // Android shadow property
+        elevation: 8,
     },
     content: {
         flexDirection: 'row',

@@ -8,9 +8,10 @@ import { Transaction } from '@/types/transaction';
 type TransactionCardProps = {
   transaction: Transaction;
   onPress: (transaction: Transaction) => void;
+  onLongPress?: (transaction: Transaction) => void; // Add this line
 };
 
-export default function TransactionCard({ transaction, onPress }: TransactionCardProps) {
+export default function TransactionCard({ transaction, onPress, onLongPress }: TransactionCardProps) {
   const { colors } = useTheme();
   const CategoryIcon = getCategoryIcon(transaction.category);
 
@@ -22,6 +23,8 @@ export default function TransactionCard({ transaction, onPress }: TransactionCar
     <TouchableOpacity
       style={[styles.container, { backgroundColor: colors.card }]}
       onPress={() => onPress(transaction)}
+      onLongPress={() => onLongPress?.(transaction)} // Add this line
+      delayLongPress={500} // Add this line
     >
       <View style={[styles.iconContainer, { backgroundColor: colors.cardAlt }]}>
         <CategoryIcon size={24} color={colors.primary} />
