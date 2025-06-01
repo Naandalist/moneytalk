@@ -67,11 +67,51 @@ async function analyzeWithOpenAI(transcription: string): Promise<{
 
 Transaction description: "${transcription}"
 
-Support both English and Indonesian languages. Examples:
-- "I spent 50000 for groceries" → expense, Groceries, 50000
-- "Saya beli makanan 25000" → expense, Groceries, 25000
-- "Received salary 5000000" → income, Salary, 5000000
-- "Terima gaji 3000000" → income, Salary, 3000000
+Support multiple currencies and languages. Recognize these currency symbols and their associated languages:
+- $ (USD) - English
+- € (EUR) - English, German, French, Spanish, Italian
+- £ (GBP) - English
+- ¥ (JPY) - English, Japanese
+- Rp (IDR) - Indonesian, English
+- S$ (SGD) - English, Chinese, Malay
+- RM (MYR) - English, Malay, Chinese
+
+Language examples:
+English:
+- "I spent $50 for groceries" → expense, Groceries, 50
+- "Received salary £2000" → income, Salary, 2000
+- "Gas bill €45.50" → expense, Utilities, 45.50
+
+Indonesian:
+- "Saya beli makanan Rp25000" → expense, Groceries, 25000
+- "Terima gaji Rp3000000" → income, Salary, 3000000
+- "Bayar listrik Rp150000" → expense, Utilities, 150000
+
+German:
+- "Ich habe €30 für Lebensmittel ausgegeben" → expense, Groceries, 30
+- "Gehalt erhalten €2500" → income, Salary, 2500
+
+French:
+- "J'ai dépensé €25 pour l'épicerie" → expense, Groceries, 25
+- "Salaire reçu €2200" → income, Salary, 2200
+
+Spanish:
+- "Gasté €40 en comestibles" → expense, Groceries, 40
+- "Recibí salario €1800" → income, Salary, 1800
+
+Japanese:
+- "食料品に¥1200使った" → expense, Groceries, 1200
+- "給料¥250000もらった" → income, Salary, 250000
+
+Malay:
+- "Saya belanja RM150 untuk makanan" → expense, Groceries, 150
+- "Terima gaji S$3000" → income, Salary, 3000
+
+Chinese (Simplified):
+- "我花了S$80买食物" → expense, Groceries, 80
+- "收到工资RM2500" → income, Salary, 2500
+
+Extract only the numeric value without currency symbols. Handle decimal amounts correctly.
 
 Respond in JSON format only:
 {
