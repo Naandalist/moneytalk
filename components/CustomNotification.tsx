@@ -193,11 +193,6 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 1,
         zIndex: 1000,
-        elevation: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
     },
     content: {
         flexDirection: 'row',
