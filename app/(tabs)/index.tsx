@@ -106,7 +106,7 @@ export default function HomeScreen() {
         <PlusCircle color={colors.white} size={28} />
       </TouchableOpacity>
 
-      <CustomNotification notification={notification} onClose={hideNotification} /> {/* Add this line */}
+      <CustomNotification notification={notification} onClose={hideNotification} />
     </View>
   );
 }
