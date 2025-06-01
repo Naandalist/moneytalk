@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Linking } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { CheckCircle, XCircle, AlertCircle, X } from 'lucide-react-native';
 
@@ -20,6 +20,43 @@ interface CustomNotificationProps {
     notification: NotificationData | null;
     onClose: () => void;
 }
+
+// Helper function to parse text and extract URLs
+const parseTextWithLinks = (text: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = urlRegex.exec(text)) !== null) {
+        // Add text before the URL
+        if (match.index > lastIndex) {
+            parts.push({
+                type: 'text',
+                content: text.substring(lastIndex, match.index)
+            });
+        }
+
+        // Add the URL
+        parts.push({
+            type: 'link',
+            content: match[0],
+            url: match[0]
+        });
+
+        lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+        parts.push({
+            type: 'text',
+            content: text.substring(lastIndex)
+        });
+    }
+
+    return parts.length > 0 ? parts : [{ type: 'text', content: text }];
+};
 
 export default function CustomNotification({ notification, onClose }: CustomNotificationProps) {
     const { colors, isDark } = useTheme();
@@ -68,6 +105,49 @@ export default function CustomNotification({ notification, onClose }: CustomNoti
         ]).start(() => {
             onClose();
         });
+    };
+
+    const handleLinkPress = useCallback(async (url: string) => {
+        try {
+            const supported = await Linking.canOpenURL(url);
+            if (supported) {
+                await Linking.openURL(url);
+            }
+        } catch (error) {
+            console.error('Error opening URL:', error);
+        }
+    }, []);
+
+    const renderTextWithLinks = (text: string, textStyle: any) => {
+        const parts = parseTextWithLinks(text);
+        
+        return (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {parts.map((part, index) => {
+                    if (part.type === 'link') {
+                        return (
+                            <TouchableOpacity
+                                key={index}
+                                onPress={() => handleLinkPress(part.url!)}
+                                activeOpacity={0.7}
+                            >
+                                <Text
+                                    style={[textStyle, { color: colors.primary, textDecorationLine: 'underline' }]}
+                                >
+                                    {part.content}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    } else {
+                        return (
+                            <Text key={index} style={textStyle}>
+                                {part.content}
+                            </Text>
+                        );
+                    }
+                })}
+            </View>
+        );
     };
 
     const getIcon = (type: NotificationType) => {
@@ -150,9 +230,7 @@ export default function CustomNotification({ notification, onClose }: CustomNoti
                     <Text style={[styles.title, { color: getTextColor(notification.type) }]}>
                         {notification.title}
                     </Text>
-                    <Text style={[styles.message, { color: getSecondaryTextColor(notification.type) }]}>
-                        {notification.message}
-                    </Text>
+                    {renderTextWithLinks(notification.message, [styles.message, { color: getSecondaryTextColor(notification.type) }])}
                 </View>
                 <TouchableOpacity onPress={hideNotification} style={styles.closeButton}>
                     <X size={20} color={colors.textSecondary} />
@@ -205,15 +283,6 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 1,
         zIndex: 1000,
-        // Remove all shadow properties to eliminate boundary box
-        // shadowColor: '#000',
-        // shadowOffset: {
-        //     width: 0,
-        //     height: 2,
-        // },
-        // shadowOpacity: 0.08,
-        // shadowRadius: 4,
-        // elevation: 3,
     },
     content: {
         flexDirection: 'row',
