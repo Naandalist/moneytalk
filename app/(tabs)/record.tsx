@@ -181,6 +181,7 @@ export default function RecordScreen() {
       try {
         // Transcribe audio
         const text = await transcribeAudio(uri);
+        console.log('OpenAI transcribeAudio:', text);
         setTranscription(text);
 
         // Analyze the transcription to extract transaction details

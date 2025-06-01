@@ -61,24 +61,26 @@ async function analyzeWithOpenAI(transcription: string): Promise<{
   const availableCategories = categoryList.join(', ');
   
   const prompt = `Analyze this financial transaction description and extract:
-1. Transaction type (income or expense)
-2. Category from this list: ${availableCategories}
-3. Amount (number only, no currency symbols)
-
-Transaction description: "${transcription}"
-
-Support both English and Indonesian languages. Examples:
-- "I spent 50000 for groceries" → expense, Groceries, 50000
-- "Saya beli makanan 25000" → expense, Groceries, 25000
-- "Received salary 5000000" → income, Salary, 5000000
-- "Terima gaji 3000000" → income, Salary, 3000000
-
-Respond in JSON format only:
-{
-  "type": "income" or "expense",
-  "category": "category from the list",
-  "amount": number
-}`;
+  1. Transaction type (income or expense)
+  2. Category from this list: ${availableCategories}
+  3. Amount (number only, no currency symbols)
+  4. Time Reference (yesterday, kemarin, 3 days ago, 3 hari kemarin, etc.), if not specified, use today's datetime. Datetime in ISO format (YYYY-MM-DD HH:ii)
+  
+  Transaction description: "${transcription}"
+  
+  Support both English and Indonesian languages. Examples:
+  - "I spent 50000 for groceries yesterday" → expense, Groceries, 50000, yesterday
+  - "Saya beli makanan 25000 kemarin" → expense, Groceries, 25000, kemarin
+  - "Received salary 5000000 3 days ago" → income, Salary, 5000000, 3 days ago
+  - "Terima gaji 3000000 kemarin lusa" → income, Salary, 3000000, 2 days ago
+  
+  Respond in JSON format only:
+  {
+    "type": "income" or "expense",
+    "category": "category from the list",
+    "amount": number,
+    "date": "ISO date string",
+  }`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -126,7 +128,7 @@ Respond in JSON format only:
     if (!categoryList.includes(analysis.category)) {
       analysis.category = 'Other';
     }
-    
+    console.log('OpenAI analysis:', analysis);
     return analysis;
   } catch (parseError) {
     throw new Error('Failed to parse OpenAI response');
