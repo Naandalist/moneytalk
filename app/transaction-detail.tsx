@@ -11,6 +11,7 @@ import {
 import { useLocalSearchParams, router } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { useDatabase } from '@/context/DatabaseContext';
+import { useCurrency } from '@/context/CurrencyContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNotification } from '@/hooks/useNotification';
 import { Transaction } from '@/types/transaction';
@@ -22,6 +23,7 @@ import CustomNotification from '@/components/CustomNotification';
 export default function TransactionDetailScreen() {
     const { colors } = useTheme();
     const { deleteTransaction } = useDatabase();
+    const { selectedCurrency } = useCurrency();
     const { notification, showWarning, showSuccess, showError, hideNotification } = useNotification();
     const insets = useSafeAreaInsets();
     const params = useLocalSearchParams();
@@ -62,7 +64,7 @@ export default function TransactionDetailScreen() {
     const handleDelete = () => {
         showWarning(
             'Delete Transaction',
-            `Are you sure you want to delete this ${transaction?.type} of ${formatCurrency(Math.abs(transaction?.amount || 0))}?`,
+            `Are you sure you want to delete this ${transaction?.type} of ${formatCurrency(Math.abs(transaction?.amount || 0), selectedCurrency.code)}?`,
             undefined,
             [
                 {
@@ -190,7 +192,7 @@ export default function TransactionDetailScreen() {
                         </View>
                     ) : (
                         <Text style={[styles.amount, { color: amountColor }]}>
-                            {amountPrefix}{formatCurrency(Math.abs(transaction.amount))}
+                            {amountPrefix}{formatCurrency(Math.abs(transaction.amount), selectedCurrency.code)}
                         </Text>
                     )}
                 </View>

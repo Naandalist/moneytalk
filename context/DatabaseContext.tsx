@@ -29,10 +29,12 @@ export const useDatabase = () => useContext(DatabaseContext);
 // Open the database
 // Replace the db declaration
 let db: SQLite.SQLiteDatabase;
+let settingsDb: SQLite.SQLiteDatabase;
 
 const initDatabase = async (setIsReady: (ready: boolean) => void) => {
   try {
     db = await SQLite.openDatabaseAsync('transactions.db');
+    settingsDb = await SQLite.openDatabaseAsync('settings.db');
 
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS transactions (
@@ -42,6 +44,13 @@ const initDatabase = async (setIsReady: (ready: boolean) => void) => {
         type TEXT NOT NULL,
         description TEXT,
         date TEXT NOT NULL
+      )
+    `);
+
+    await settingsDb.execAsync(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
       )
     `);
 
@@ -176,6 +185,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const clearAllTransactions = async (): Promise<void> => {
     try {
       await db.runAsync('DELETE FROM transactions');
+      await settingsDb.runAsync('DELETE FROM settings');
     } catch (error) {
       throw error;
     }

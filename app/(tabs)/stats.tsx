@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { useTheme } from '@/context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '@/context/DatabaseContext';
+import { useCurrency } from '@/context/CurrencyContext';
 import { PieChart, LineChart } from 'react-native-chart-kit';
 import { Dimensions } from 'react-native';
 import TransactionList from '@/components/TransactionList';
@@ -16,6 +17,7 @@ export default function StatsScreen() {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { getTransactionsByPeriod, getTransactionsByCategory } = useDatabase();
+  const { selectedCurrency } = useCurrency();
 
   const [transactions, setTransactions] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
@@ -223,14 +225,14 @@ export default function StatsScreen() {
           <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Expenses</Text>
             <Text style={[styles.summaryValue, { color: colors.error }]}>
-              {formatCurrency(getTotalExpenses())}
+              {formatCurrency(getTotalExpenses(), selectedCurrency.code)}
             </Text>
           </View>
 
           <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Income</Text>
             <Text style={[styles.summaryValue, { color: colors.success }]}>
-              {formatCurrency(getTotalIncome())}
+              {formatCurrency(getTotalIncome(), selectedCurrency.code)}
             </Text>
           </View>
         </View>

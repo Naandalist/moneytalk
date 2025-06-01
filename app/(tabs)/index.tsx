@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { useDatabase } from '@/context/DatabaseContext';
 import { useTheme } from '@/context/ThemeContext';
+import { useCurrency } from '@/context/CurrencyContext';
 import TransactionCard from '@/components/TransactionCard';
-import CustomNotification from '@/components/CustomNotification'; // Add this import
-import { useNotification } from '@/hooks/useNotification'; // Add this import
+import CustomNotification from '@/components/CustomNotification';
+import { useNotification } from '@/hooks/useNotification';
 import { formatCurrency } from '@/utils/formatters';
 import { useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,10 +19,12 @@ import { Transaction } from '@/types/transaction';
 export default function HomeScreen() {
   const { getRecentTransactions, getBalance } = useDatabase();
   const { colors } = useTheme();
+  const { selectedCurrency, setSelectedCurrency, currencies, isOnboardingComplete, completeOnboarding } = useCurrency();
   const insets = useSafeAreaInsets();
   const [transactions, setTransactions] = useState([]);
   const [balance, setBalance] = useState({ income: 0, expenses: 0 });
-  const { notification, hideNotification } = useNotification();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const { notification, hideNotification, showSuccess } = useNotification();
 
   const loadData = useCallback(async () => {
     const recentTransactions = await getRecentTransactions(5);
@@ -37,12 +40,18 @@ export default function HomeScreen() {
     }, [loadData])
   );
 
+  useEffect(() => {
+    // Show onboarding if not completed
+    if (!isOnboardingComplete) {
+      setShowOnboarding(true);
+    }
+  }, [isOnboardingComplete]);
+
   const navigateToRecord = () => {
     router.push('/record');
   };
 
   const handleTransactionLongPress = (transaction: Transaction) => {
-    // Navigate to transaction detail screen
     router.push({
       pathname: '/transaction-detail',
       params: {
@@ -51,6 +60,64 @@ export default function HomeScreen() {
       }
     });
   };
+
+  const handleCurrencySelect = async (currency: typeof currencies[0]) => {
+    await setSelectedCurrency(currency);
+    await completeOnboarding();
+    setShowOnboarding(false);
+    showSuccess(
+      'Welcome to MoneyTalk!',
+      `You have selected ${currency.name} (${currency.symbol}) as your default currency. You can change this anytime in settings.`,
+      4000
+    );
+  };
+
+  const renderOnboardingModal = () => (
+    <Modal
+      visible={showOnboarding}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => { }} // Prevent closing
+    >
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+          <Text style={[styles.welcomeTitle, { color: colors.text }]}>Welcome to MoneyTalk!</Text>
+          <Text style={[styles.welcomeSubtitle, { color: colors.textSecondary }]}>
+            Your voice-powered finance tracker
+          </Text>
+
+          <Text style={[styles.modalTitle, { color: colors.text }]}>Select Your Currency</Text>
+          <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+            Choose your preferred currency for transactions
+          </Text>
+
+          <ScrollView style={styles.currencyList} showsVerticalScrollIndicator={false}>
+            {currencies.map((currency) => (
+              <TouchableOpacity
+                key={currency.code}
+                style={[styles.currencyItem, { borderBottomColor: colors.border }]}
+                onPress={() => handleCurrencySelect(currency)}
+              >
+                <View style={styles.currencyInfo}>
+                  <Text style={[styles.currencySymbol, { color: colors.primary }]}>
+                    {currency.symbol}
+                  </Text>
+                  <View style={styles.currencyDetails}>
+                    <Text style={[styles.currencyName, { color: colors.text }]}>
+                      {currency.name}
+                    </Text>
+                    <Text style={[styles.currencyCode, { color: colors.textSecondary }]}>
+                      {currency.code}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
@@ -69,9 +136,9 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <SummaryCard
-          balance={formatCurrency(balance.income - balance.expenses)}
-          income={formatCurrency(balance.income)}
-          expenses={formatCurrency(balance.expenses)}
+          balance={formatCurrency(balance.income - balance.expenses, selectedCurrency.code)}
+          income={formatCurrency(balance.income, selectedCurrency.code)}
+          expenses={formatCurrency(balance.expenses, selectedCurrency.code)}
         />
 
         <View style={styles.transactionsHeader}>
@@ -107,6 +174,7 @@ export default function HomeScreen() {
       </TouchableOpacity>
 
       <CustomNotification notification={notification} onClose={hideNotification} />
+      {renderOnboardingModal()}
     </View>
   );
 }
@@ -176,5 +244,76 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '90%',
+    maxHeight: '80%',
+    borderRadius: 20,
+    padding: 24,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  welcomeTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 24,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  welcomeSubtitle: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 20,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  currencyList: {
+    maxHeight: 300,
+  },
+  currencyItem: {
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  currencyInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  currencySymbol: {
+    fontSize: 24,
+    fontFamily: 'Inter-Bold',
+    width: 40,
+    textAlign: 'center',
+    marginRight: 16,
+  },
+  currencyDetails: {
+    flex: 1,
+  },
+  currencyName: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 16,
+  },
+  currencyCode: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    marginTop: 2,
   },
 });

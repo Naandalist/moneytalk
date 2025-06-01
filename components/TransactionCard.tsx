@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
+import { useCurrency } from '@/context/CurrencyContext';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { getCategoryIcon } from '@/utils/categories';
 import { Transaction } from '@/types/transaction';
@@ -8,11 +9,12 @@ import { Transaction } from '@/types/transaction';
 type TransactionCardProps = {
   transaction: Transaction;
   onPress: (transaction: Transaction) => void;
-  onLongPress?: (transaction: Transaction) => void; // Add this line
+  onLongPress?: (transaction: Transaction) => void;
 };
 
 export default function TransactionCard({ transaction, onPress, onLongPress }: TransactionCardProps) {
   const { colors } = useTheme();
+  const { selectedCurrency } = useCurrency();
   const CategoryIcon = getCategoryIcon(transaction.category);
 
   const isExpense = transaction.type === 'expense';
@@ -23,8 +25,8 @@ export default function TransactionCard({ transaction, onPress, onLongPress }: T
     <TouchableOpacity
       style={[styles.container, { backgroundColor: colors.card }]}
       onPress={() => onPress(transaction)}
-      onLongPress={() => onLongPress?.(transaction)} // Add this line
-      delayLongPress={500} // Add this line
+      onLongPress={() => onLongPress?.(transaction)}
+      delayLongPress={500}
     >
       <View style={[styles.iconContainer, { backgroundColor: colors.cardAlt }]}>
         <CategoryIcon size={24} color={colors.primary} />
@@ -45,7 +47,7 @@ export default function TransactionCard({ transaction, onPress, onLongPress }: T
       </View>
 
       <Text style={[styles.amount, { color: amountColor }]}>
-        {amountPrefix}{formatCurrency(Math.abs(transaction.amount))}
+        {amountPrefix}{formatCurrency(Math.abs(transaction.amount), selectedCurrency.code)}
       </Text>
     </TouchableOpacity>
   );

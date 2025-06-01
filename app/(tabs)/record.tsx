@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/context/ThemeContext';
+import { useCurrency } from '@/context/CurrencyContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Mic, CircleStop as StopCircle, CircleAlert as AlertCircle } from 'lucide-react-native';
 import { useDatabase } from '@/context/DatabaseContext';
@@ -63,6 +64,7 @@ const transcribeAudio = async (uri: string): Promise<string> => {
 
 export default function RecordScreen() {
   const { colors } = useTheme();
+  const { selectedCurrency } = useCurrency();
   const insets = useSafeAreaInsets();
   const { addTransaction } = useDatabase();
   const {
@@ -284,7 +286,7 @@ export default function RecordScreen() {
               <Text style={[styles.instructionsText, { color: colors.textSecondary }]}>
                 {isRecording
                   ? 'Speak clearly about your transaction.'
-                  : 'Tap the microphone and describe your transaction.\nExample: "I spent $24 on lunch today" or\n"I received $2000 from my salary"'}
+                  : `Tap the microphone and describe your transaction.\nExample: "I spent ${selectedCurrency.symbol}24 on lunch today" or\n"I received ${selectedCurrency.symbol}2000 from my salary"`}
               </Text>
             </View>
           )}

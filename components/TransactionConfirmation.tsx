@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
+import { useCurrency } from '@/context/CurrencyContext';
 import { Transaction } from '@/types/transaction';
 import { Check, X, Save } from 'lucide-react-native';
 import { categoryList, getCategoryIcon } from '@/utils/categories';
@@ -17,6 +18,7 @@ export default function TransactionConfirmation({
   onCancel 
 }: TransactionConfirmationProps) {
   const { colors } = useTheme();
+  const { selectedCurrency } = useCurrency();
   const [editedTransaction, setEditedTransaction] = useState<Transaction>({...transaction});
   
   const updateAmount = (text: string) => {
@@ -109,7 +111,7 @@ export default function TransactionConfirmation({
         <View style={styles.amountContainer}>
           <Text style={[styles.amountLabel, { color: colors.textSecondary }]}>Amount</Text>
           <View style={styles.amountInputContainer}>
-            <Text style={[styles.currencySymbol, { color: colors.text }]}>$</Text>
+            <Text style={[styles.currencySymbol, { color: colors.text }]}>{selectedCurrency.symbol}</Text>
             <TextInput
               style={[
                 styles.amountInput, 

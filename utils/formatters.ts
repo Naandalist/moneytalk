@@ -1,10 +1,28 @@
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
+// export function formatCurrency(amount: number, currencyCode: string = 'USD'): string {
+//   return new Intl.NumberFormat('en-US', {
+//     style: 'currency',
+//     currency: currencyCode,
+//     minimumFractionDigits: 2,
+//     maximumFractionDigits: 2,
+//   }).format(amount);
+// }
+
+export function formatCurrency(amount: number, currencyCode: string = 'USD'): string {
+  // Handle special formatting for certain currencies
+  const formatOptions: Intl.NumberFormatOptions = {
     style: 'currency',
-    currency: 'USD',
+    currency: currencyCode,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  };
+
+  // For currencies like IDR, JPY that typically don't use decimal places
+  if (['IDR', 'JPY', 'KRW'].includes(currencyCode)) {
+    formatOptions.minimumFractionDigits = 0;
+    formatOptions.maximumFractionDigits = 0;
+  }
+
+  return new Intl.NumberFormat('en-US', formatOptions).format(amount);
 }
 
 export function formatDate(string: string): string {
