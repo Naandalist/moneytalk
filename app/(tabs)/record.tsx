@@ -13,6 +13,7 @@ import CustomNotification from '@/components/CustomNotification';
 import { useNotification } from '@/hooks/useNotification';
 import { Transaction } from '@/types/transaction';
 import { router } from 'expo-router';
+import Constants from 'expo-constants';
 
 // Mock function for audio transcription - in a real app, you'd connect to an API
 const transcribeAudio = async (uri: string): Promise<string> => {
@@ -28,10 +29,16 @@ const transcribeAudio = async (uri: string): Promise<string> => {
     formData.append('model', 'whisper-1');
     formData.append('response_format', 'json');
 
+    const openaiKey = Constants.expoConfig?.extra?.openaiApiKey || null;
+
+    if (!openaiKey) {
+      throw new Error('OpenAI API key not found');
+    }
+
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${openaiKey}`,
       },
       body: formData,
     });

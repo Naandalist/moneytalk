@@ -1,5 +1,6 @@
 import { Transaction } from '../types/transaction';
 import { categoryList } from './categories';
+import Constants from 'expo-constants';
 
 // OpenAI API integration for transaction analysis
 export async function analyzeTransaction(transcription: string): Promise<Transaction> {
@@ -51,9 +52,9 @@ async function analyzeWithOpenAI(transcription: string): Promise<{
   category: string;
   amount: number;
 }> {
-  const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-  
-  if (!apiKey) {
+
+  const openaiKey = Constants.expoConfig?.extra?.openaiApiKey || null;
+  if (!openaiKey) {
     throw new Error('OpenAI API key not found');
   }
 
@@ -83,7 +84,7 @@ Respond in JSON format only:
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
+      'Authorization': `Bearer ${openaiKey}`,
     },
     body: JSON.stringify({
       model: 'gpt-4.1-nano-2025-04-14',
