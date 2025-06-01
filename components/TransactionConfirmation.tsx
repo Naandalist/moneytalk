@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { Transaction } from '@/types/transaction';
@@ -69,120 +69,127 @@ export default function TransactionConfirmation({
     <View style={styles.container}>
       <Text style={[styles.title, { color: colors.text }]}>Confirm Transaction</Text>
       
-      <View style={[styles.card, { backgroundColor: colors.card }]}>
-        {/* Transaction Type Toggle */}
-        <View style={styles.typeSelector}>
-          <TouchableOpacity
-            style={[
-              styles.typeButton,
-              editedTransaction.type === 'expense' && { backgroundColor: colors.error },
-            ]}
-            onPress={() => setEditedTransaction({...editedTransaction, type: 'expense'})}
-          >
-            <Text 
+      <ScrollView 
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
+          {/* Transaction Type Toggle */}
+          <View style={styles.typeSelector}>
+            <TouchableOpacity
               style={[
-                styles.typeButtonText, 
-                { color: editedTransaction.type === 'expense' ? colors.white : colors.textSecondary }
+                styles.typeButton,
+                editedTransaction.type === 'expense' && { backgroundColor: colors.error },
               ]}
+              onPress={() => setEditedTransaction({...editedTransaction, type: 'expense'})}
             >
-              Expense
-            </Text>
-          </TouchableOpacity>
+              <Text 
+                style={[
+                  styles.typeButtonText, 
+                  { color: editedTransaction.type === 'expense' ? colors.white : colors.textSecondary }
+                ]}
+              >
+                Expense
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                editedTransaction.type === 'income' && { backgroundColor: colors.success },
+              ]}
+              onPress={() => setEditedTransaction({...editedTransaction, type: 'income'})}
+            >
+              <Text 
+                style={[
+                  styles.typeButtonText, 
+                  { color: editedTransaction.type === 'income' ? colors.white : colors.textSecondary }
+                ]}
+              >
+                Income
+              </Text>
+            </TouchableOpacity>
+          </View>
           
-          <TouchableOpacity
-            style={[
-              styles.typeButton,
-              editedTransaction.type === 'income' && { backgroundColor: colors.success },
-            ]}
-            onPress={() => setEditedTransaction({...editedTransaction, type: 'income'})}
-          >
-            <Text 
-              style={[
-                styles.typeButtonText, 
-                { color: editedTransaction.type === 'income' ? colors.white : colors.textSecondary }
-              ]}
-            >
-              Income
-            </Text>
-          </TouchableOpacity>
-        </View>
-        
-        {/* Amount Input */}
-        <View style={styles.amountContainer}>
-          <Text style={[styles.amountLabel, { color: colors.textSecondary }]}>Amount</Text>
-          <View style={styles.amountInputContainer}>
-            <Text style={[styles.currencySymbol, { color: colors.text }]}>{selectedCurrency.symbol}</Text>
+          {/* Amount Input */}
+          <View style={styles.amountContainer}>
+            <Text style={[styles.amountLabel, { color: colors.textSecondary }]}>Amount</Text>
+            <View style={styles.amountInputContainer}>
+              <Text style={[styles.currencySymbol, { color: colors.text }]}>{selectedCurrency.symbol}</Text>
+              <TextInput
+                style={[
+                  styles.amountInput, 
+                  { color: colors.text, borderBottomColor: colors.border }
+                ]}
+                value={String(Math.abs(editedTransaction.amount))}
+                onChangeText={updateAmount}
+                keyboardType="numeric"
+                placeholder="0.00"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+          </View>
+          
+          {/* Description Input */}
+          <View style={styles.descriptionContainer}>
+            <Text style={[styles.descriptionLabel, { color: colors.textSecondary }]}>Description</Text>
             <TextInput
               style={[
-                styles.amountInput, 
-                { color: colors.text, borderBottomColor: colors.border }
+                styles.descriptionInput, 
+                { color: colors.text, borderColor: colors.border, backgroundColor: colors.cardAlt }
               ]}
-              value={String(Math.abs(editedTransaction.amount))}
-              onChangeText={updateAmount}
-              keyboardType="numeric"
-              placeholder="0.00"
+              value={editedTransaction.description || ''}
+              onChangeText={updateDescription}
+              placeholder="Add a note about this transaction..."
               placeholderTextColor={colors.textSecondary}
+              multiline
+              numberOfLines={2}
+              textAlignVertical="top"
             />
           </View>
-        </View>
-        
-        {/* Description Input */}
-        <View style={styles.descriptionContainer}>
-          <Text style={[styles.descriptionLabel, { color: colors.textSecondary }]}>Description</Text>
-          <TextInput
-            style={[
-              styles.descriptionInput, 
-              { color: colors.text, borderColor: colors.border, backgroundColor: colors.cardAlt }
-            ]}
-            value={editedTransaction.description || ''}
-            onChangeText={updateDescription}
-            placeholder="Add a note about this transaction..."
-            placeholderTextColor={colors.textSecondary}
-            multiline
-            numberOfLines={3}
-            textAlignVertical="top"
-          />
-        </View>
-        
-        {/* Category Selection */}
-        <View style={styles.sectionContainer}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Category</Text>
           
-          <View style={styles.selectedCategory}>
-            <View style={[styles.categoryIcon, { backgroundColor: colors.cardAlt }]}>
-              <SelectedCategoryIcon size={20} color={colors.primary} />
+          {/* Category Selection */}
+          <View style={styles.sectionContainer}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Category</Text>
+            
+            <View style={styles.selectedCategory}>
+              <View style={[styles.categoryIcon, { backgroundColor: colors.cardAlt }]}>
+                <SelectedCategoryIcon size={20} color={colors.primary} />
+              </View>
+              <Text style={[styles.selectedCategoryText, { color: colors.text }]}>
+                {editedTransaction.category}
+              </Text>
             </View>
-            <Text style={[styles.selectedCategoryText, { color: colors.text }]}>
-              {editedTransaction.category}
-            </Text>
-          </View>
-          
-          <View style={styles.categoriesGrid}>
-            {categoryList.map((category) => {
-              const CategoryIcon = getCategoryIcon(category);
-              const isSelected = editedTransaction.category === category;
-              
-              return (
-                <TouchableOpacity
-                  key={category}
-                  style={[
-                    styles.categoryItem,
-                    { backgroundColor: isSelected ? colors.primary : colors.cardAlt },
-                  ]}
-                  onPress={() => selectCategory(category)}
-                >
-                  <CategoryIcon 
-                    size={20} 
-                    color={isSelected ? colors.white : colors.primary} 
-                  />
-                </TouchableOpacity>
-              );
-            })}
+            
+            <View style={styles.categoriesGrid}>
+              {categoryList.map((category) => {
+                const CategoryIcon = getCategoryIcon(category);
+                const isSelected = editedTransaction.category === category;
+                
+                return (
+                  <TouchableOpacity
+                    key={category}
+                    style={[
+                      styles.categoryItem,
+                      { backgroundColor: isSelected ? colors.primary : colors.cardAlt },
+                    ]}
+                    onPress={() => selectCategory(category)}
+                  >
+                    <CategoryIcon 
+                      size={20} 
+                      color={isSelected ? colors.white : colors.primary} 
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </View>
-      </View>
+      </ScrollView>
       
-      {/* Action Buttons */}
+      {/* Action Buttons - Fixed at bottom */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={[styles.button, styles.cancelButton, { borderColor: colors.border }]}
@@ -213,6 +220,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
     fontSize: 20,
     marginBottom: 16,
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   card: {
     borderRadius: 16,
@@ -268,10 +281,10 @@ const styles = StyleSheet.create({
   descriptionInput: {
     fontFamily: 'Inter-Regular',
     fontSize: 16,
-    padding: 12,
+    padding: 10,
     borderWidth: 1,
     borderRadius: 8,
-    minHeight: 80,
+    minHeight: 60,
   },
   sectionContainer: {
     marginBottom: 16,
@@ -304,8 +317,8 @@ const styles = StyleSheet.create({
     marginHorizontal: -4,
   },
   categoryItem: {
-    width: 50,
-    height: 50,
+    width: 40,
+    height: 40,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
@@ -313,16 +326,21 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
-    marginTop: 24,
+    paddingTop: 16,
+    paddingHorizontal: 4,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
   },
   button: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     borderRadius: 12,
-    marginHorizontal: 8,
+    minHeight: 48,
   },
   cancelButton: {
     borderWidth: 1,
@@ -332,5 +350,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     fontSize: 16,
     marginLeft: 8,
+    flexShrink: 1,
   },
 });
