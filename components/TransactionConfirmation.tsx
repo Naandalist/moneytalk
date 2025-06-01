@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { Transaction } from '@/types/transaction';
 import { Check, X, Save } from 'lucide-react-native';
 import { categoryList, getCategoryIcon } from '@/utils/categories';
+import { formatCurrency } from 'react-native-format-currency';
 
 type TransactionConfirmationProps = {
   transaction: Transaction;
@@ -12,30 +13,57 @@ type TransactionConfirmationProps = {
   onCancel: () => void;
 };
 
-export default function TransactionConfirmation({ 
-  transaction, 
-  onSave, 
-  onCancel 
+export default function TransactionConfirmation({
+  transaction,
+  onSave,
+  onCancel
 }: TransactionConfirmationProps) {
   const { colors } = useTheme();
   const { selectedCurrency } = useCurrency();
-  const [editedTransaction, setEditedTransaction] = useState<Transaction>({...transaction});
-  
+  const [editedTransaction, setEditedTransaction] = useState<Transaction>({ ...transaction });
+  const [displayValue, setDisplayValue] = useState('');
+
+  useEffect(() => {
+    // Initialize display value with formatted currency
+    const amount = Math.abs(editedTransaction.amount);
+    if (amount > 0) {
+      const [formattedWithoutSymbol] = formatCurrency({ amount, code: selectedCurrency.code });
+      setDisplayValue(formattedWithoutSymbol.replace(/[^\d.,]/g, ''));
+    } else {
+      setDisplayValue('');
+    }
+  }, [editedTransaction.amount, selectedCurrency.code]);
+
   const updateAmount = (text: string) => {
-    const numericValue = parseFloat(text.replace(/[^0-9.]/g, ''));
+    // Remove all non-numeric characters except decimal point
+    const cleanText = text.replace(/[^\d.]/g, '');
+    const numericValue = parseFloat(cleanText) || 0;
+
+    // Update the actual transaction amount
     setEditedTransaction({
       ...editedTransaction,
-      amount: isNaN(numericValue) ? 0 : numericValue,
+      amount: numericValue,
     });
+
+    // Format and update display value
+    if (numericValue > 0) {
+      const [, valueFormattedWithoutSymbol] = formatCurrency({
+        amount: numericValue,
+        code: selectedCurrency.code
+      });
+      setDisplayValue(valueFormattedWithoutSymbol);
+    } else {
+      setDisplayValue(text);
+    }
   };
-  
+
   const updateDescription = (text: string) => {
     setEditedTransaction({
       ...editedTransaction,
       description: text,
     });
   };
-  
+
   const toggleTransactionType = () => {
     const newType = editedTransaction.type === 'expense' ? 'income' : 'expense';
     setEditedTransaction({
@@ -43,33 +71,37 @@ export default function TransactionConfirmation({
       type: newType,
     });
   };
-  
+
   const selectCategory = (category: string) => {
     setEditedTransaction({
       ...editedTransaction,
       category,
     });
   };
-  
+
   const handleSave = () => {
     // Ensure amount is positive for income and negative for expense
-    const finalAmount = editedTransaction.type === 'expense' 
-      ? -Math.abs(editedTransaction.amount) 
+    const finalAmount = editedTransaction.type === 'expense'
+      ? -Math.abs(editedTransaction.amount)
       : Math.abs(editedTransaction.amount);
-    
+
     onSave({
       ...editedTransaction,
       amount: finalAmount,
     });
   };
-  
+
   const SelectedCategoryIcon = getCategoryIcon(editedTransaction.category);
-  
+
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+    >
       <Text style={[styles.title, { color: colors.text }]}>Confirm Transaction</Text>
-      
-      <ScrollView 
+
+      <ScrollView
         style={styles.scrollContainer}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -83,28 +115,28 @@ export default function TransactionConfirmation({
                 styles.typeButton,
                 editedTransaction.type === 'expense' && { backgroundColor: colors.error },
               ]}
-              onPress={() => setEditedTransaction({...editedTransaction, type: 'expense'})}
+              onPress={() => setEditedTransaction({ ...editedTransaction, type: 'expense' })}
             >
-              <Text 
+              <Text
                 style={[
-                  styles.typeButtonText, 
+                  styles.typeButtonText,
                   { color: editedTransaction.type === 'expense' ? colors.white : colors.textSecondary }
                 ]}
               >
                 Expense
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
                 styles.typeButton,
                 editedTransaction.type === 'income' && { backgroundColor: colors.success },
               ]}
-              onPress={() => setEditedTransaction({...editedTransaction, type: 'income'})}
+              onPress={() => setEditedTransaction({ ...editedTransaction, type: 'income' })}
             >
-              <Text 
+              <Text
                 style={[
-                  styles.typeButtonText, 
+                  styles.typeButtonText,
                   { color: editedTransaction.type === 'income' ? colors.white : colors.textSecondary }
                 ]}
               >
@@ -112,7 +144,7 @@ export default function TransactionConfirmation({
               </Text>
             </TouchableOpacity>
           </View>
-          
+
           {/* Amount Input */}
           <View style={styles.amountContainer}>
             <Text style={[styles.amountLabel, { color: colors.textSecondary }]}>Amount</Text>
@@ -120,24 +152,24 @@ export default function TransactionConfirmation({
               <Text style={[styles.currencySymbol, { color: colors.text }]}>{selectedCurrency.symbol}</Text>
               <TextInput
                 style={[
-                  styles.amountInput, 
+                  styles.amountInput,
                   { color: colors.text, borderBottomColor: colors.border }
                 ]}
-                value={String(Math.abs(editedTransaction.amount))}
+                value={displayValue}
                 onChangeText={updateAmount}
-                keyboardType="numeric"
                 placeholder="0.00"
                 placeholderTextColor={colors.textSecondary}
+                keyboardType="numeric"
               />
             </View>
           </View>
-          
+
           {/* Description Input */}
           <View style={styles.descriptionContainer}>
             <Text style={[styles.descriptionLabel, { color: colors.textSecondary }]}>Description</Text>
             <TextInput
               style={[
-                styles.descriptionInput, 
+                styles.descriptionInput,
                 { color: colors.text, borderColor: colors.border, backgroundColor: colors.cardAlt }
               ]}
               value={editedTransaction.description || ''}
@@ -149,11 +181,11 @@ export default function TransactionConfirmation({
               textAlignVertical="top"
             />
           </View>
-          
+
           {/* Category Selection */}
           <View style={styles.sectionContainer}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Category</Text>
-            
+
             <View style={styles.selectedCategory}>
               <View style={[styles.categoryIcon, { backgroundColor: colors.cardAlt }]}>
                 <SelectedCategoryIcon size={20} color={colors.primary} />
@@ -162,12 +194,12 @@ export default function TransactionConfirmation({
                 {editedTransaction.category}
               </Text>
             </View>
-            
+
             <View style={styles.categoriesGrid}>
               {categoryList.map((category) => {
                 const CategoryIcon = getCategoryIcon(category);
                 const isSelected = editedTransaction.category === category;
-                
+
                 return (
                   <TouchableOpacity
                     key={category}
@@ -177,9 +209,9 @@ export default function TransactionConfirmation({
                     ]}
                     onPress={() => selectCategory(category)}
                   >
-                    <CategoryIcon 
-                      size={20} 
-                      color={isSelected ? colors.white : colors.primary} 
+                    <CategoryIcon
+                      size={20}
+                      color={isSelected ? colors.white : colors.primary}
                     />
                   </TouchableOpacity>
                 );
@@ -188,9 +220,9 @@ export default function TransactionConfirmation({
           </View>
         </View>
       </ScrollView>
-      
-      {/* Action Buttons - Fixed at bottom */}
-      <View style={styles.buttonContainer}>
+
+      {/* Action Buttons - Fixed at bottom, above keyboard */}
+      <View style={[styles.buttonContainer, { backgroundColor: colors.background }]}>
         <TouchableOpacity
           style={[styles.button, styles.cancelButton, { borderColor: colors.border }]}
           onPress={onCancel}
@@ -198,7 +230,7 @@ export default function TransactionConfirmation({
           <X size={20} color={colors.text} />
           <Text style={[styles.buttonText, { color: colors.text }]}>Cancel</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.button, styles.saveButton, { backgroundColor: colors.primary }]}
           onPress={handleSave}
@@ -207,7 +239,7 @@ export default function TransactionConfirmation({
           <Text style={[styles.buttonText, { color: colors.white }]}>Save</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -327,10 +359,19 @@ const styles = StyleSheet.create({
   buttonContainer: {
     flexDirection: 'row',
     paddingTop: 16,
-    paddingHorizontal: 4,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 16, // Account for safe area on iOS
+    paddingHorizontal: 16,
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.1)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 5,
   },
   button: {
     flex: 1,
