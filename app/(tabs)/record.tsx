@@ -62,6 +62,8 @@ const transcribeAudio = async (uri: string): Promise<string> => {
   }
 };
 
+const MAX_RECORDING_DURATION = 10; // 10 seconds
+
 export default function RecordScreen() {
   const { colors } = useTheme();
   const { selectedCurrency } = useCurrency();
@@ -84,6 +86,16 @@ export default function RecordScreen() {
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getRemainingTime = () => {
+    return MAX_RECORDING_DURATION - recordingDuration;
+  };
+
   useEffect(() => {
     return () => {
       if (timerRef.current) {
@@ -91,6 +103,12 @@ export default function RecordScreen() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (recordingDuration >= MAX_RECORDING_DURATION && isRecording) {
+      stopRecording();
+    }
+  }, [recordingDuration, isRecording]);
 
   async function startRecording() {
     try {
@@ -291,13 +309,17 @@ export default function RecordScreen() {
             </View>
           )}
 
-          {/* Recording visualization */}
           {isRecording && (
             <View style={styles.waveformContainer}>
               <RecordingWaveform />
-              <Text style={[styles.durationText, { color: colors.primary }]}>
-                {formatDuration(recordingDuration)}
+              <Text style={[styles.duration, { color: colors.text }]}>
+                {formatTime(recordingDuration)} / {formatTime(MAX_RECORDING_DURATION)}
               </Text>
+              {getRemainingTime() <= 5 && getRemainingTime() > 0 && (
+                <Text style={[styles.warning, { color: colors.error }]}>
+                  {getRemainingTime()} seconds remaining
+                </Text>
+              )}
             </View>
           )}
 
@@ -424,5 +446,17 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     fontSize: 14,
     marginLeft: 6,
+  },
+  warning: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  duration: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    textAlign: 'center',
+    marginTop: 4,
   },
 });
