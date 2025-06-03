@@ -47,9 +47,9 @@ export default function StatsScreen() {
       // Get spending by category
       const categoryTransactions = await getTransactionsByCategory(period);
 
-      // Format data for pie chart
+      // Format data for pie chart (expenses only)
       const pieData = categoryTransactions
-        .filter(item => item.amount > 0) // Filter out zero amounts
+        .filter(item => item.amount < 0) // Show only expenses (negative amounts)
         .map(item => ({
           name: item.category,
           amount: Math.abs(item.amount),
