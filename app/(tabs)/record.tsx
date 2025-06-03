@@ -62,7 +62,7 @@ const transcribeAudio = async (uri: string): Promise<string> => {
   }
 };
 
-const MAX_RECORDING_DURATION = 10; // 10 seconds
+const MAX_RECORDING_DURATION = 20; // 20 seconds
 
 export default function RecordScreen() {
   const { colors } = useTheme();
@@ -251,12 +251,6 @@ export default function RecordScreen() {
     setParsedTransaction(null);
   };
 
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
-
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <Text style={[styles.header, { color: colors.text }]}>Record Transaction</Text>
@@ -316,7 +310,7 @@ export default function RecordScreen() {
               <Text style={[styles.duration, { color: colors.text }]}>
                 {formatTime(recordingDuration)} / {formatTime(MAX_RECORDING_DURATION)}
               </Text>
-              {getRemainingTime() <= 5 && getRemainingTime() > 0 && (
+              {getRemainingTime() <= (MAX_RECORDING_DURATION - 5) && getRemainingTime() > 0 && (
                 <Text style={[styles.warning, { color: colors.error }]}>
                   {getRemainingTime()} seconds remaining
                 </Text>
