@@ -4,7 +4,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { Transaction } from '@/types/transaction';
-import { Check, X, Save, Calendar } from 'lucide-react-native';
+import { Check, X, Save, Calendar, Clock } from 'lucide-react-native';
 import { categoryList, getCategoryIcon } from '@/utils/categories';
 import { formatCurrency } from 'react-native-format-currency';
 
@@ -24,6 +24,7 @@ export default function TransactionConfirmation({
   const [editedTransaction, setEditedTransaction] = useState<Transaction>({ ...transaction });
   const [displayValue, setDisplayValue] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   useEffect(() => {
     // Initialize display value with formatted currency
@@ -101,17 +102,73 @@ export default function TransactionConfirmation({
   };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      setEditedTransaction({
-        ...editedTransaction,
-        date: selectedDate.toISOString().split('T')[0], // Format as YYYY-MM-DD
-      });
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+      if (event.type === 'set' && selectedDate) {
+        // Preserve existing time when changing date
+        const currentDateTime = editedTransaction.date ? new Date(editedTransaction.date) : new Date();
+        const newDateTime = new Date(selectedDate);
+        newDateTime.setHours(currentDateTime.getHours());
+        newDateTime.setMinutes(currentDateTime.getMinutes());
+
+        setEditedTransaction({
+          ...editedTransaction,
+          date: newDateTime.toISOString(),
+        });
+      }
+    } else {
+      // iOS handling
+      if (selectedDate) {
+        const currentDateTime = editedTransaction.date ? new Date(editedTransaction.date) : new Date();
+        const newDateTime = new Date(selectedDate);
+        newDateTime.setHours(currentDateTime.getHours());
+        newDateTime.setMinutes(currentDateTime.getMinutes());
+
+        setEditedTransaction({
+          ...editedTransaction,
+          date: newDateTime.toISOString(),
+        });
+      }
+    }
+  };
+
+  const onTimeChange = (event: any, selectedTime?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+      if (event.type === 'set' && selectedTime) {
+        // Preserve existing date when changing time
+        const currentDateTime = editedTransaction.date ? new Date(editedTransaction.date) : new Date();
+        const newDateTime = new Date(currentDateTime);
+        newDateTime.setHours(selectedTime.getHours());
+        newDateTime.setMinutes(selectedTime.getMinutes());
+
+        setEditedTransaction({
+          ...editedTransaction,
+          date: newDateTime.toISOString(),
+        });
+      }
+    } else {
+      // iOS handling
+      if (selectedTime) {
+        const currentDateTime = editedTransaction.date ? new Date(editedTransaction.date) : new Date();
+        const newDateTime = new Date(currentDateTime);
+        newDateTime.setHours(selectedTime.getHours());
+        newDateTime.setMinutes(selectedTime.getMinutes());
+
+        setEditedTransaction({
+          ...editedTransaction,
+          date: newDateTime.toISOString(),
+        });
+      }
     }
   };
 
   const openDatePicker = () => {
     setShowDatePicker(true);
+  };
+
+  const openTimePicker = () => {
+    setShowTimePicker(true);
   };
 
   const formatDateForDisplay = (dateString: string) => {
@@ -121,8 +178,16 @@ export default function TransactionConfirmation({
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
+    });
+  };
+
+  const formatTimeForDisplay = (dateString: string) => {
+    if (!dateString) return 'Select Time';
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
     });
   };
 
@@ -199,25 +264,6 @@ export default function TransactionConfirmation({
             </View>
           </View>
 
-          {/* Date Input */}
-          <View style={styles.dateContainer}>
-            <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Date</Text>
-            <TouchableOpacity style={styles.dateInputContainer} onPress={openDatePicker}>
-              <Calendar size={20} color={colors.primary} style={styles.dateIcon} />
-              <View style={[
-                styles.dateInput,
-                { borderColor: colors.border, backgroundColor: colors.cardAlt }
-              ]}>
-                <Text style={[
-                  styles.dateText,
-                  { color: editedTransaction.date ? colors.text : colors.textSecondary }
-                ]}>
-                  {formatDateForDisplay(editedTransaction.date)}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
           {/* Description Input */}
           <View style={styles.descriptionContainer}>
             <Text style={[styles.descriptionLabel, { color: colors.textSecondary }]}>Description</Text>
@@ -234,6 +280,45 @@ export default function TransactionConfirmation({
               numberOfLines={2}
               textAlignVertical="top"
             />
+          </View>
+
+          {/* Date and Time Input */}
+          <View style={styles.dateTimeContainer}>
+            <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Date & Time</Text>
+
+            <View style={styles.dateTimeRow}>
+              {/* Date Picker */}
+              <TouchableOpacity style={[styles.dateTimeInputContainer, { flex: 1, marginRight: 8 }]} onPress={openDatePicker}>
+                <Calendar size={20} color={colors.primary} style={styles.dateIcon} />
+                <View style={[
+                  styles.dateTimeInput,
+                  { borderColor: colors.border, backgroundColor: colors.cardAlt }
+                ]}>
+                  <Text style={[
+                    styles.dateTimeText,
+                    { color: editedTransaction.date ? colors.text : colors.textSecondary }
+                  ]}>
+                    {formatDateForDisplay(editedTransaction.date)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Time Picker */}
+              <TouchableOpacity style={[styles.dateTimeInputContainer, { flex: 1, marginLeft: 8 }]} onPress={openTimePicker}>
+                <Clock size={20} color={colors.primary} style={styles.dateIcon} />
+                <View style={[
+                  styles.dateTimeInput,
+                  { borderColor: colors.border, backgroundColor: colors.cardAlt }
+                ]}>
+                  <Text style={[
+                    styles.dateTimeText,
+                    { color: editedTransaction.date ? colors.text : colors.textSecondary }
+                  ]}>
+                    {formatTimeForDisplay(editedTransaction.date)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Category Selection */}
@@ -282,6 +367,18 @@ export default function TransactionConfirmation({
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={onDateChange}
+          maximumDate={new Date()}
+        />
+      )}
+
+      {/* Time Picker Modal */}
+      {showTimePicker && (
+        <DateTimePicker
+          value={editedTransaction.date ? new Date(editedTransaction.date) : new Date()}
+          mode="time"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={onTimeChange}
+          is24Hour={false}
         />
       )}
 
@@ -488,5 +585,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  dateTimeContainer: {
+    marginBottom: 20,
+  },
+  dateTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateTimeInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateTimeInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  dateTimeText: {
+    fontSize: 16,
   },
 });
