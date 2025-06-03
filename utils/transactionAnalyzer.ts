@@ -22,6 +22,7 @@ export async function analyzeTransaction(transcription: string): Promise<Transac
     transaction.type = analysis.type;
     transaction.category = analysis.category;
     transaction.amount = analysis.amount;
+    transaction.date = analysis.date;
     
     // Make amount negative for expenses
     if (transaction.type === 'expense' && transaction.amount > 0) {
@@ -51,6 +52,7 @@ async function analyzeWithOpenAI(transcription: string): Promise<{
   type: 'income' | 'expense';
   category: string;
   amount: number;
+  date: string;
 }> {
 
   const openaiKey = Constants.expoConfig?.extra?.openaiApiKey || null;
@@ -59,27 +61,33 @@ async function analyzeWithOpenAI(transcription: string): Promise<{
   }
 
   const availableCategories = categoryList.join(', ');
+
+  const currentDatetime = new Date().toISOString(); // Get current datetime in ISO 8601 format for OpenAI to use as reference in conversatio
   
-  const prompt = `Analyze this financial transaction description and extract:
-  1. Transaction type (income or expense)
-  2. Category from this list: ${availableCategories}
-  3. Amount (number only, no currency symbols)
-  4. Time Reference (yesterday, kemarin, 3 days ago, 3 hari kemarin, etc.), if not specified, use today's datetime. Datetime in ISO format (YYYY-MM-DD HH:ii)
+  const prompt = `currentDatetime ${currentDatetime}. Analyze this financial transaction description and extract:
+  1. Transaction type: "income" or "expense"
+  2. Category: Choose one from this list → ${availableCategories}
+  3. Amount: Numeric only (no currency symbols or words)
+  4. Time Reference: Detect and convert any natural language time references (in English or Indonesian, such as “yesterday”, “kemarin”, “3 days ago”, “3 hari yang lalu”) to ISO 8601 datetime format.
+
+  Use this current datetime as reference, default assume user's timezone is Asia/Jakarta.
+
+  Correct examples of time parsing:
+    - “yesterday” / “kemarin” → currentDatetime - 1 day
+    - “2 days ago” / “kemarin lusa” → currentDatetime - 2 day
+    - “3 days ago” / “3 hari yang lalu” → currentDatetime - 3 day
+    - “1 week ago” / “1 minggu yang lalu” → currentDatetime - 7 day
   
+  If no time reference is found, use today's datetime, get from your system date time.
+
   Transaction description: "${transcription}"
-  
-  Support both English and Indonesian languages. Examples:
-  - "I spent 50000 for groceries yesterday" → expense, Groceries, 50000, yesterday
-  - "Saya beli makanan 25000 kemarin" → expense, Groceries, 25000, kemarin
-  - "Received salary 5000000 3 days ago" → income, Salary, 5000000, 3 days ago
-  - "Terima gaji 3000000 kemarin lusa" → income, Salary, 3000000, 2 days ago
-  
-  Respond in JSON format only:
+
+  Respond ONLY in this JSON format:
   {
     "type": "income" or "expense",
     "category": "category from the list",
     "amount": number,
-    "date": "ISO date string",
+    "date": "YYYY-MM-DDTHH:mm:ss"
   }`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -128,6 +136,7 @@ async function analyzeWithOpenAI(transcription: string): Promise<{
     if (!categoryList.includes(analysis.category)) {
       analysis.category = 'Other';
     }
+    
     console.log('OpenAI analysis:', analysis);
     return analysis;
   } catch (parseError) {

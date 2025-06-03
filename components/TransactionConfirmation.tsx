@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { Transaction } from '@/types/transaction';
-import { Check, X, Save } from 'lucide-react-native';
+import { Check, X, Save, Calendar } from 'lucide-react-native';
 import { categoryList, getCategoryIcon } from '@/utils/categories';
 import { formatCurrency } from 'react-native-format-currency';
 
@@ -22,6 +23,7 @@ export default function TransactionConfirmation({
   const { selectedCurrency } = useCurrency();
   const [editedTransaction, setEditedTransaction] = useState<Transaction>({ ...transaction });
   const [displayValue, setDisplayValue] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     // Initialize display value with formatted currency
@@ -88,6 +90,37 @@ export default function TransactionConfirmation({
     onSave({
       ...editedTransaction,
       amount: finalAmount,
+    });
+  };
+
+  const updateDate = (text: string) => {
+    setEditedTransaction({
+      ...editedTransaction,
+      date: text,
+    });
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setEditedTransaction({
+        ...editedTransaction,
+        date: selectedDate.toISOString().split('T')[0], // Format as YYYY-MM-DD
+      });
+    }
+  };
+
+  const openDatePicker = () => {
+    setShowDatePicker(true);
+  };
+
+  const formatDateForDisplay = (dateString: string) => {
+    if (!dateString) return 'Select Date';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
   };
 
@@ -164,6 +197,25 @@ export default function TransactionConfirmation({
             </View>
           </View>
 
+          {/* Date Input */}
+          <View style={styles.dateContainer}>
+            <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Date</Text>
+            <TouchableOpacity style={styles.dateInputContainer} onPress={openDatePicker}>
+              <Calendar size={20} color={colors.primary} style={styles.dateIcon} />
+              <View style={[
+                styles.dateInput,
+                { borderColor: colors.border, backgroundColor: colors.cardAlt }
+              ]}>
+                <Text style={[
+                  styles.dateText,
+                  { color: editedTransaction.date ? colors.text : colors.textSecondary }
+                ]}>
+                  {formatDateForDisplay(editedTransaction.date)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
           {/* Description Input */}
           <View style={styles.descriptionContainer}>
             <Text style={[styles.descriptionLabel, { color: colors.textSecondary }]}>Description</Text>
@@ -220,6 +272,16 @@ export default function TransactionConfirmation({
           </View>
         </View>
       </ScrollView>
+
+      {/* Date Picker Modal */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={editedTransaction.date ? new Date(editedTransaction.date) : new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={onDateChange}
+        />
+      )}
 
       {/* Action Buttons - Fixed at bottom, above keyboard */}
       <View style={[styles.buttonContainer, { backgroundColor: colors.background }]}>
@@ -392,5 +454,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginLeft: 8,
     flexShrink: 1,
+  },
+  dateContainer: {
+    marginBottom: 20,
+  },
+  dateLabel: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  dateInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateIcon: {
+    marginRight: 8,
+  },
+  dateInput: {
+    flex: 1,
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    justifyContent: 'center',
+  },
+  dateText: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 16,
+  },
+  datePreview: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });
