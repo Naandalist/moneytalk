@@ -62,15 +62,19 @@ async function analyzeWithOpenAI(transcription: string): Promise<{
 
   const availableCategories = categoryList.join(', ');
 
-  const currentDatetime = new Date().toISOString(); // Get current datetime in ISO 8601 format for OpenAI to use as reference in conversatio
+  const currentDatetime = new Date().toISOString(); // Get current datetime in ISO 8601 format for OpenAI to use as reference in conversation
+
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; // Get the user's timezone
+
+  console.log({timezone, currentDatetime})
   
-  const prompt = `currentDatetime ${currentDatetime}. Analyze this financial transaction description and extract:
+  const prompt = `userTimezone: ${timezone}, currentDatetime: ${currentDatetime}. Analyze this financial transaction description and extract:
   1. Transaction type: "income" or "expense"
   2. Category: Choose one from this list → ${availableCategories}
   3. Amount: Numeric only (no currency symbols or words)
   4. Time Reference: Detect and convert any natural language time references (in English or Indonesian, such as “yesterday”, “kemarin”, “3 days ago”, “3 hari yang lalu”) to ISO 8601 datetime format.
 
-  Use this current datetime as reference, default assume user's timezone is Asia/Jakarta.
+  Use this currentDatetime as reference. return date in correct userTimezone.
 
   Correct examples of time parsing:
     - “yesterday” / “kemarin” → currentDatetime - 1 day
@@ -87,7 +91,8 @@ async function analyzeWithOpenAI(transcription: string): Promise<{
     "type": "income" or "expense",
     "category": "category from the list",
     "amount": number,
-    "date": "YYYY-MM-DDTHH:mm:ss"
+    "date": "YYYY-MM-DDTHH:mm:ss",
+    "timezone": "userTimezone",
   }`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
