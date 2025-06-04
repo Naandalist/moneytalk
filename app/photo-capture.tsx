@@ -41,7 +41,7 @@ export default function PhotoCaptureScreen() {
         const result = await ImagePicker.launchCameraAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
-            aspect: [4, 3],
+            aspect: [3, 4],
             quality: 0.8,
         });
 
@@ -123,15 +123,12 @@ export default function PhotoCaptureScreen() {
 
                     const result = await visionResponse.json();
                     const analysisText = result.choices[0].message.content;
+
                     // Sanitize the analysis text
                     const sanitizedText = analysisText
                         .replace(/```json\s*/g, '') // Remove ```json markers
                         .replace(/```\s*/g, '')     // Remove ``` markers
                         .trim();
-
-                    console.warn({
-                        sanitizedText
-                    }); // Add this line to log the response
 
                     // Try to parse JSON from the response
                     let parsedResult;
