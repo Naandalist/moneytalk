@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Animated } from 'react-native';
 import { useDatabase } from '@/context/DatabaseContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
@@ -7,9 +7,9 @@ import TransactionCard from '@/components/TransactionCard';
 import CustomNotification from '@/components/CustomNotification';
 import { useNotification } from '@/hooks/useNotification';
 import { formatCurrency } from '@/utils/formatters';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CirclePlus as PlusCircle } from 'lucide-react-native';
+import { CirclePlus as PlusCircle, Camera, Mic, X } from 'lucide-react-native';
 import { router } from 'expo-router';
 import SummaryCard from '@/components/SummaryCard';
 import { useFocusEffect } from '@react-navigation/native';
@@ -24,7 +24,13 @@ export default function HomeScreen() {
   const [transactions, setTransactions] = useState([]);
   const [balance, setBalance] = useState({ income: 0, expenses: 0 });
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [isFabExpanded, setIsFabExpanded] = useState(false);
   const { notification, hideNotification, showSuccess } = useNotification();
+
+  // Animation values
+  const fabAnimation = useRef(new Animated.Value(0)).current;
+  const cameraButtonAnimation = useRef(new Animated.Value(0)).current;
+  const recordButtonAnimation = useRef(new Animated.Value(0)).current;
 
   const loadData = useCallback(async () => {
     const recentTransactions = await getRecentTransactions(5);
@@ -47,8 +53,43 @@ export default function HomeScreen() {
     }
   }, [isOnboardingComplete]);
 
+  const toggleFabMenu = () => {
+    const toValue = isFabExpanded ? 0 : 1;
+
+    Animated.parallel([
+      Animated.spring(fabAnimation, {
+        toValue,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 8,
+      }),
+      Animated.stagger(50, [
+        Animated.spring(recordButtonAnimation, {
+          toValue,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 8,
+        }),
+        Animated.spring(cameraButtonAnimation, {
+          toValue,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 8,
+        }),
+      ]),
+    ]).start();
+
+    setIsFabExpanded(!isFabExpanded);
+  };
+
   const navigateToRecord = () => {
+    setIsFabExpanded(false);
     router.push('/record');
+  };
+
+  const navigateToPhotoCapture = () => {
+    setIsFabExpanded(false);
+    router.push('/photo-capture');
   };
 
   const handleTransactionLongPress = (transaction: Transaction) => {
@@ -166,12 +207,119 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary }]}
-        onPress={navigateToRecord}
-      >
-        <PlusCircle color={colors.white} size={28} />
-      </TouchableOpacity>
+      <View style={styles.fabContainer}>
+        {/* Camera Button */}
+        <Animated.View
+          style={[
+            styles.expandedFabButton,
+            {
+              transform: [
+                {
+                  translateY: cameraButtonAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -140], // Increased from -120 to -140
+                  }),
+                },
+                {
+                  scale: cameraButtonAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 1],
+                  }),
+                },
+              ],
+              opacity: cameraButtonAnimation,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={[styles.secondaryFab, { backgroundColor: colors.cardAlt }]}
+            onPress={navigateToPhotoCapture}
+            disabled={!isFabExpanded}
+          >
+            <Camera color={colors.text} size={24} />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Record Button */}
+        <Animated.View
+          style={[
+            styles.expandedFabButton,
+            {
+              transform: [
+                {
+                  translateY: recordButtonAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -75], // Increased from -70 to -85
+                  }),
+                },
+                {
+                  scale: recordButtonAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 1],
+                  }),
+                },
+              ],
+              opacity: recordButtonAnimation,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={[styles.secondaryFab, { backgroundColor: colors.cardAlt }]}
+            onPress={navigateToRecord}
+            disabled={!isFabExpanded}
+          >
+            <Mic color={colors.text} size={24} />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Main FAB */}
+        <Animated.View
+          style={{
+            transform: [
+              {
+                rotate: fabAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['0deg', '45deg'],
+                }),
+              },
+            ],
+          }}
+        >
+          <TouchableOpacity
+            style={[styles.fab, { backgroundColor: colors.primary }]}
+            onPress={toggleFabMenu}
+          >
+            <Animated.View
+              style={{
+                opacity: fabAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 0],
+                }),
+                position: 'absolute',
+              }}
+            >
+              <PlusCircle color={colors.white} size={28} />
+            </Animated.View>
+            <Animated.View
+              style={{
+                opacity: fabAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1],
+                }),
+                transform: [{
+                  rotate: fabAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0deg', '45deg'],
+                  }),
+                }],
+                position: 'absolute',
+              }}
+            >
+              <X color={colors.white} size={28} />
+            </Animated.View>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
 
       <CustomNotification notification={notification} onClose={hideNotification} />
       {renderOnboardingModal()}
@@ -179,6 +327,7 @@ export default function HomeScreen() {
   );
 }
 
+// Add these styles to the existing StyleSheet
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -230,10 +379,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
+  expandedFabButton: {
+    position: 'absolute', // Position absolutely to overlay on main FAB
+    bottom: 0, // Start from the same position as main FAB
+  },
   fab: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
     width: 60,
     height: 60,
     borderRadius: 30,
@@ -242,8 +392,20 @@ const styles = StyleSheet.create({
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  secondaryFab: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
   modalOverlay: {
     flex: 1,
@@ -315,5 +477,41 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     fontSize: 14,
     marginTop: 2,
+  },
+  fabContainer: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'flex-end', // Align items to bottom
+  },
+  expandedFabButton: {
+    position: 'absolute', // Position absolutely to overlay on main FAB
+    bottom: 0, // Start from the same position as main FAB
+  },
+  fab: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  secondaryFab: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
 });
