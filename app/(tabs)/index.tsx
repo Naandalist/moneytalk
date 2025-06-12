@@ -15,6 +15,7 @@ import SummaryCard from '@/components/SummaryCard';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { Transaction } from '@/types/transaction';
+import { NativeAdCard } from '@/components/NativeAdCard';
 
 export default function HomeScreen() {
   const { getRecentTransactions, getBalance } = useDatabase();
@@ -216,21 +217,27 @@ export default function HomeScreen() {
         </View>
 
         {transactions.length > 0 ? (
-          transactions.map((transaction) => (
-            <TransactionCard
-              // @ts-expect-error
-              key={transaction.id.toString()}
-              transaction={transaction}
-              onPress={() => handleTransactionLongPress(transaction)}
-              onLongPress={() => handleTransactionLongPress(transaction)}
-            />
+          transactions.map((transaction, index) => (
+            <>
+              {((index + 1) % 3 === 0 || (transactions.length < 3 && index === 0)) && <NativeAdCard key={index} />}
+              <TransactionCard
+                // @ts-expect-error
+                key={transaction.id.toString()}
+                transaction={transaction}
+                onPress={() => handleTransactionLongPress(transaction)}
+                onLongPress={() => handleTransactionLongPress(transaction)}
+              />
+            </>
           ))
         ) : (
-          <View style={[styles.emptyState, { backgroundColor: colors.cardAlt }]}>
-            <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
-              No transactions yet. Tap the record button to add your first transaction!
-            </Text>
-          </View>
+          <>
+            <NativeAdCard />
+            <View style={[styles.emptyState, { backgroundColor: colors.cardAlt }]}>
+              <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
+                No transactions yet. Tap the record button to add your first transaction!
+              </Text>
+            </View>
+          </>
         )}
       </ScrollView>
 

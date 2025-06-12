@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import TransactionCard from './TransactionCard';
 import { Transaction } from '@/types/transaction';
+import { NativeAdCard } from './NativeAdCard';
 
 type TransactionListProps = {
   transactions: Transaction[];
@@ -10,7 +11,7 @@ type TransactionListProps = {
 
 export default function TransactionList({ transactions }: TransactionListProps) {
   const { colors } = useTheme();
-  
+
   if (transactions.length === 0) {
     return (
       <View style={[styles.emptyContainer, { backgroundColor: colors.cardAlt }]}>
@@ -20,16 +21,19 @@ export default function TransactionList({ transactions }: TransactionListProps) 
       </View>
     );
   }
-  
+
   return (
     <FlatList
       data={transactions}
       keyExtractor={(item) => item.id.toString()}
-      renderItem={({ item }) => (
-        <TransactionCard
-          transaction={item}
-          onPress={() => {}}
-        />
+      renderItem={({ item, index }) => (
+        <>
+          {((index + 1) % 3 === 0 || (transactions.length < 3 && index === 0)) && <NativeAdCard key={index} />}
+          <TransactionCard
+            transaction={item}
+            onPress={() => { }}
+          />
+        </>
       )}
       style={styles.list}
       scrollEnabled={false}
