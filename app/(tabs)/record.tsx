@@ -15,18 +15,7 @@ import { useNotification } from '@/hooks/useNotification';
 import { Transaction } from '@/types/transaction';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
-import { AdEventType, InterstitialAd, TestIds } from 'react-native-google-mobile-ads';
-import * as Device from 'expo-device';
-
-
-// AdMob configuration
-const adMobInterstitialUnitId = 'ca-app-pub-3827890809706045/7212736994';
-
-// const iosAdmobInterstitial = "ca-app-pub-3827890809706045~1872866125";
-// const androidAdmobInterstitial = "ca-app-pub-3827890809706045~1872866125";
-// const productionID = Device.osName === 'Android' ? androidAdmobInterstitial : iosAdmobInterstitial;
-const adUnitId = __DEV__ ? TestIds.INTERSTITIAL : adMobInterstitialUnitId;
-// Make sure to always use a test ID when not in production 
+import { useAdMob } from '@/utils/admob';
 
 // Mock function for audio transcription - in a real app, you'd connect to an API
 const transcribeAudio = async (uri: string): Promise<string> => {
@@ -76,11 +65,6 @@ const transcribeAudio = async (uri: string): Promise<string> => {
 
 const MAX_RECORDING_DURATION = 20; // 20 seconds
 
-const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
-  keywords: ['food', 'car', 'fruit', 'finance', 'app', 'kids', 'family', 'cooking', 'travel'],
-  requestNonPersonalizedAdsOnly: true, // Update based on the initial tracking settings from initialization earlier
-});
-
 export default function RecordScreen() {
   const { colors } = useTheme();
   const { selectedCurrency } = useCurrency();
@@ -94,13 +78,15 @@ export default function RecordScreen() {
     showWarning,
   } = useNotification();
 
+  // Use the AdMob hook
+  const { showAdWithDelay, isAdLoaded } = useAdMob(['food', 'car', 'fruit', 'finance', 'app', 'kids', 'family', 'cooking', 'travel']);
+
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [transcription, setTranscription] = useState('');
   const [parsedTransaction, setParsedTransaction] = useState<Transaction | null>(null);
-  const [loaded, setLoaded] = useState<boolean>(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -113,30 +99,6 @@ export default function RecordScreen() {
   const getRemainingTime = () => {
     return MAX_RECORDING_DURATION - recordingDuration;
   };
-
-  useEffect(() => {
-    // Event listener for when the ad is loaded
-    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-      setLoaded(true);
-    });
-
-    // Event listener for when the ad is closed
-    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-      setLoaded(false);
-
-      // Load a new ad when the current ad is closed
-      router.replace('/');
-    });
-
-    // Start loading the interstitial ad straight away
-    interstitial.load();
-
-    // Unsubscribe from events on unmount
-    return () => {
-      unsubscribeLoaded();
-      unsubscribeClosed();
-    };
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -279,30 +241,10 @@ export default function RecordScreen() {
       // Show success notification
       showSuccess('Success', 'Transaction saved successfully!', 2000);
 
-      // Show AdMob interstitial ad before redirecting
-      try {
-        // Wait for notification to finish, then show ad
-        setTimeout(() => {
-          try {
-            if (loaded) {
-              interstitial.show();
-            } else {
-              // If ad not loaded, redirect immediately
-              router.replace('/');
-            }
-          } catch (adError) {
-            console.log('AdMob error:', adError);
-            // If ad fails, redirect immediately
-            router.replace('/');
-          }
-        }, 2000); // Wait 2 seconds for notification to finish
-      } catch (adError) {
-        console.log('AdMob error:', adError);
-        // If ad fails, still redirect after the original timeout
-        setTimeout(() => {
-          router.replace('/');
-        }, 2000);
-      }
+      // Show AdMob interstitial ad with delay, then navigate
+      await showAdWithDelay(2000, () => {
+        router.replace('/');
+      });
     } catch (error) {
       console.error('Error saving transaction:', error);
       showError('Error', 'Failed to save transaction. Please try again.');
@@ -373,7 +315,7 @@ export default function RecordScreen() {
               <Text style={[styles.duration, { color: colors.text }]}>
                 {formatTime(recordingDuration)} / {formatTime(MAX_RECORDING_DURATION)}
               </Text>
-              {getRemainingTime() <= (MAX_RECORDING_DURATION - 5) && getRemainingTime() > 0 && (
+              {getRemainingTime() <= (MAX_RECORDING_DURATION - 15) && getRemainingTime() > 0 && (
                 <Text style={[styles.warning, { color: colors.error }]}>
                   {getRemainingTime()} seconds remaining
                 </Text>

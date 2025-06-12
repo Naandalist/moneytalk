@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '@/context/ThemeContext';
@@ -13,22 +13,7 @@ import TransactionConfirmation from '@/components/TransactionConfirmation';
 import CustomNotification from '@/components/CustomNotification';
 import { useNotification } from '@/hooks/useNotification';
 import * as Haptics from 'expo-haptics';
-import { AdEventType, InterstitialAd, TestIds } from 'react-native-google-mobile-ads';
-import * as Device from 'expo-device';
-
-// AdMob configuration
-const adMobInterstitialUnitId = 'ca-app-pub-3827890809706045/7212736994';
-
-// const iosAdmobInterstitial = "ca-app-pub-3827890809706045~1872866125";
-// const androidAdmobInterstitial = "ca-app-pub-3827890809706045~1872866125";
-// const productionID = Device.osName === 'Android' ? androidAdmobInterstitial : iosAdmobInterstitial;
-const adUnitId = __DEV__ ? TestIds.INTERSTITIAL : adMobInterstitialUnitId;
-// Make sure to always use a test ID when not in production 
-
-const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
-    keywords: ['food', 'car', 'fruit', 'finance', 'app', 'kids', 'family', 'cooking', 'travel'],
-    requestNonPersonalizedAdsOnly: true, // Update based on the initial tracking settings from initialization earlier
-});
+import { useAdMob } from '@/utils/admob';
 
 export default function PhotoCaptureScreen() {
     const { colors } = useTheme();
@@ -37,34 +22,12 @@ export default function PhotoCaptureScreen() {
     const insets = useSafeAreaInsets();
     const { notification, hideNotification, showSuccess, showError } = useNotification();
 
+    // Use the AdMob hook with photo-specific keywords
+    const { showAdWithDelay, isAdLoaded } = useAdMob(['food', 'car', 'fruit', 'finance', 'app', 'kids', 'family', 'cooking', 'travel']);
+
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [parsedTransaction, setParsedTransaction] = useState<Transaction | null>(null);
-    const [loaded, setLoaded] = useState<boolean>(false);
-
-    useEffect(() => {
-        // Event listener for when the ad is loaded
-        const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-            setLoaded(true);
-        });
-
-        // Event listener for when the ad is closed
-        const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-            setLoaded(false);
-
-            // Load a new ad when the current ad is closed
-            router.replace('/');
-        });
-
-        // Start loading the interstitial ad straight away
-        interstitial.load();
-
-        // Unsubscribe from events on unmount
-        return () => {
-            unsubscribeLoaded();
-            unsubscribeClosed();
-        };
-    }, []);
 
     const requestPermissions = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -225,30 +188,10 @@ export default function PhotoCaptureScreen() {
 
             showSuccess('Success', 'Transaction saved successfully!', 2000);
 
-            // Show AdMob interstitial ad before redirecting
-            try {
-                // Wait for notification to finish, then show ad
-                setTimeout(() => {
-                    try {
-                        if (loaded) {
-                            interstitial.show();
-                        } else {
-                            // If ad not loaded, redirect immediately
-                            router.replace('/');
-                        }
-                    } catch (adError) {
-                        console.log('AdMob error:', adError);
-                        // If ad fails, redirect immediately
-                        router.replace('/');
-                    }
-                }, 2000); // Wait 2 seconds for notification to finish
-            } catch (adError) {
-                console.log('AdMob error:', adError);
-                // If ad fails, still redirect after the original timeout
-                setTimeout(() => {
-                    router.replace('/');
-                }, 2000);
-            }
+            // Show AdMob interstitial ad with delay, then navigate
+            await showAdWithDelay(2000, () => {
+                router.replace('/');
+            });
         } catch (error) {
             console.error('Error saving transaction:', error);
             showError('Error', 'Failed to save transaction. Please try again.');
