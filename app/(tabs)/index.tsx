@@ -82,13 +82,38 @@ export default function HomeScreen() {
     setIsFabExpanded(!isFabExpanded);
   };
 
-  const navigateToRecord = () => {
+  const collapseFabMenu = () => {
+    Animated.parallel([
+      Animated.spring(fabAnimation, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 8,
+      }),
+      Animated.spring(recordButtonAnimation, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 8,
+      }),
+      Animated.spring(cameraButtonAnimation, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 8,
+      }),
+    ]).start();
+
     setIsFabExpanded(false);
+  };
+
+  const navigateToRecord = () => {
+    collapseFabMenu();
     router.push('/record');
   };
 
   const navigateToPhotoCapture = () => {
-    setIsFabExpanded(false);
+    collapseFabMenu();
     router.push('/photo-capture');
   };
 
