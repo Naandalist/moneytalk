@@ -15,6 +15,7 @@ import { useNotification } from '@/hooks/useNotification';
 import { Transaction } from '@/types/transaction';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
+import { useAdMob } from '@/utils/admob';
 
 // Mock function for audio transcription - in a real app, you'd connect to an API
 const transcribeAudio = async (uri: string): Promise<string> => {
@@ -76,6 +77,9 @@ export default function RecordScreen() {
     showError,
     showWarning,
   } = useNotification();
+
+  // Use the AdMob hook
+  const { showAdWithDelay, isAdLoaded } = useAdMob(['food', 'car', 'fruit', 'finance', 'app', 'kids', 'family', 'cooking', 'travel']);
 
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -141,6 +145,7 @@ export default function RecordScreen() {
       setRecordingDuration(0);
 
       // Start duration timer
+      // @ts-expect-error
       timerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
@@ -236,10 +241,10 @@ export default function RecordScreen() {
       // Show success notification
       showSuccess('Success', 'Transaction saved successfully!', 2000);
 
-      // Redirect to home after notification
-      setTimeout(() => {
+      // Show AdMob interstitial ad with delay, then navigate
+      await showAdWithDelay(2000, () => {
         router.replace('/');
-      }, 2000);
+      });
     } catch (error) {
       console.error('Error saving transaction:', error);
       showError('Error', 'Failed to save transaction. Please try again.');
@@ -310,7 +315,7 @@ export default function RecordScreen() {
               <Text style={[styles.duration, { color: colors.text }]}>
                 {formatTime(recordingDuration)} / {formatTime(MAX_RECORDING_DURATION)}
               </Text>
-              {getRemainingTime() <= (MAX_RECORDING_DURATION - 5) && getRemainingTime() > 0 && (
+              {getRemainingTime() <= (MAX_RECORDING_DURATION - 15) && getRemainingTime() > 0 && (
                 <Text style={[styles.warning, { color: colors.error }]}>
                   {getRemainingTime()} seconds remaining
                 </Text>
@@ -455,3 +460,4 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
+

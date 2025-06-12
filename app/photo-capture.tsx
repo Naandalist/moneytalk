@@ -13,6 +13,7 @@ import TransactionConfirmation from '@/components/TransactionConfirmation';
 import CustomNotification from '@/components/CustomNotification';
 import { useNotification } from '@/hooks/useNotification';
 import * as Haptics from 'expo-haptics';
+import { useAdMob } from '@/utils/admob';
 
 export default function PhotoCaptureScreen() {
     const { colors } = useTheme();
@@ -20,6 +21,9 @@ export default function PhotoCaptureScreen() {
     const { addTransaction } = useDatabase();
     const insets = useSafeAreaInsets();
     const { notification, hideNotification, showSuccess, showError } = useNotification();
+
+    // Use the AdMob hook with photo-specific keywords
+    const { showAdWithDelay, isAdLoaded } = useAdMob(['food', 'car', 'fruit', 'finance', 'app', 'kids', 'family', 'cooking', 'travel']);
 
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -184,9 +188,10 @@ export default function PhotoCaptureScreen() {
 
             showSuccess('Success', 'Transaction saved successfully!', 2000);
 
-            setTimeout(() => {
+            // Show AdMob interstitial ad with delay, then navigate
+            await showAdWithDelay(2000, () => {
                 router.replace('/');
-            }, 2000);
+            });
         } catch (error) {
             console.error('Error saving transaction:', error);
             showError('Error', 'Failed to save transaction. Please try again.');
