@@ -77,7 +77,7 @@ const transcribeAudio = async (uri: string): Promise<string> => {
 const MAX_RECORDING_DURATION = 20; // 20 seconds
 
 const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
-  keywords: ['food', 'cooking', 'fruit'], // Update based on the most relevant keywords for your app/users, these are just random examples
+  keywords: ['food', 'car', 'fruit', 'finance', 'app', 'kids', 'family', 'cooking', 'travel'],
   requestNonPersonalizedAdsOnly: true, // Update based on the initial tracking settings from initialization earlier
 });
 
@@ -125,7 +125,7 @@ export default function RecordScreen() {
       setLoaded(false);
 
       // Load a new ad when the current ad is closed
-      interstitial.load();
+      router.replace('/');
     });
 
     // Start loading the interstitial ad straight away
@@ -183,6 +183,7 @@ export default function RecordScreen() {
       setRecordingDuration(0);
 
       // Start duration timer
+      // @ts-expect-error
       timerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
@@ -280,12 +281,21 @@ export default function RecordScreen() {
 
       // Show AdMob interstitial ad before redirecting
       try {
-        if (loaded) {
-          interstitial.show();
-        }
-
-        // Redirect to home after ad is closed
-        router.replace('/');
+        // Wait for notification to finish, then show ad
+        setTimeout(() => {
+          try {
+            if (loaded) {
+              interstitial.show();
+            } else {
+              // If ad not loaded, redirect immediately
+              router.replace('/');
+            }
+          } catch (adError) {
+            console.log('AdMob error:', adError);
+            // If ad fails, redirect immediately
+            router.replace('/');
+          }
+        }, 2000); // Wait 2 seconds for notification to finish
       } catch (adError) {
         console.log('AdMob error:', adError);
         // If ad fails, still redirect after the original timeout
