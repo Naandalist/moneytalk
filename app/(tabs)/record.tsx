@@ -6,100 +6,44 @@ import { useTheme } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Mic, CircleStop as StopCircle, CircleAlert as AlertCircle } from 'lucide-react-native';
-import { useDatabase } from '@/context/DatabaseContext';
-import { analyzeTransaction } from '@/utils/transactionAnalyzer';
 import RecordingWaveform from '@/components/RecordingWaveform';
 import TransactionConfirmation from '@/components/TransactionConfirmation';
 import CustomNotification from '@/components/CustomNotification';
+import { NativeAdComponent } from '@/components/NativeAdComponent';
 import { useNotification } from '@/hooks/useNotification';
-import { Transaction } from '@/types/transaction';
-import { router } from 'expo-router';
-import Constants from 'expo-constants';
+import { useOpenAI } from '@/utils/useOpenAI';
+import { useTransactionProcessor } from '@/hooks/useTransactionProcessor';
 import { useAdMob } from '@/utils/admob';
+import { router } from 'expo-router';
 
-// Mock function for audio transcription - in a real app, you'd connect to an API
-const transcribeAudio = async (uri: string): Promise<string> => {
-  try {
-    const formData = new FormData();
-
-    formData.append('file', {
-      uri: uri,
-      type: 'audio/m4a',
-      name: 'recording.m4a'
-    } as any);
-
-    formData.append('model', 'whisper-1');
-    formData.append('response_format', 'json');
-
-    const openaiKey = Constants.expoConfig?.extra?.openaiApiKey || null;
-
-    if (!openaiKey) {
-      throw new Error('OpenAI API key not found');
-    }
-
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiKey}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`OpenAI API error: ${errorData.error?.message || response.status}`);
-    }
-
-    const result = await response.json();
-    return result.text || 'No transcription available';
-
-  } catch (error) {
-    console.error('Transcription error:', error);
-    // Fallback to mock data in development or show user-friendly error
-    if (__DEV__) {
-      return "I spent 24 dollars on lunch today"; // Keep mock for development
-    }
-    throw new Error('Unable to transcribe audio. Please try again.');
-  }
-};
-
-const MAX_RECORDING_DURATION = 20; // 20 seconds
+const MAX_RECORDING_DURATION = 20;
 
 export default function RecordScreen() {
+  const { showAdWithDelay } = useAdMob(['food', 'car', 'fruit', 'finance', 'app', 'kids', 'family', 'cooking', 'travel']);
   const { colors } = useTheme();
   const { selectedCurrency } = useCurrency();
   const insets = useSafeAreaInsets();
-  const { addTransaction } = useDatabase();
+  const { notification, hideNotification, showWarning, showSuccess, showError } = useNotification();
+
+  // Custom hooks
+  const { transcribeAudio, isProcessing } = useOpenAI({
+    onError: (error) => showError('Processing Error', error)
+  });
   const {
-    notification,
-    hideNotification,
-    showSuccess,
-    showError,
-    showWarning,
-  } = useNotification();
+    parsedTransaction,
+    processTranscription,
+    saveTransaction,
+    cancelTransaction
+  } = useTransactionProcessor();
 
-  // Use the AdMob hook
-  const { showAdWithDelay, isAdLoaded } = useAdMob(['food', 'car', 'fruit', 'finance', 'app', 'kids', 'family', 'cooking', 'travel']);
-
+  // Recording state
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [transcription, setTranscription] = useState('');
-  const [parsedTransaction, setParsedTransaction] = useState<Transaction | null>(null);
-
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const getRemainingTime = () => {
-    return MAX_RECORDING_DURATION - recordingDuration;
-  };
-
+  // Cleanup timer on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) {
@@ -108,34 +52,36 @@ export default function RecordScreen() {
     };
   }, []);
 
+  // Auto-stop recording when max duration reached
   useEffect(() => {
     if (recordingDuration >= MAX_RECORDING_DURATION && isRecording) {
       stopRecording();
     }
   }, [recordingDuration, isRecording]);
 
-  async function startRecording() {
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getRemainingTime = () => MAX_RECORDING_DURATION - recordingDuration;
+
+  const startRecording = async () => {
     try {
-      // Request permissions
       const permission = await Audio.requestPermissionsAsync();
       if (permission.status !== 'granted') {
-        showWarning(
-          'Permission Required',
-          'You need to grant audio recording permissions to use this feature.'
-        );
+        showWarning('Permission Required', 'You need to grant audio recording permissions to use this feature.');
         return;
       }
 
-      // Configure audio session
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
-      // Haptic feedback
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // Create and prepare recording
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
@@ -143,130 +89,71 @@ export default function RecordScreen() {
       setRecording(recording);
       setIsRecording(true);
       setRecordingDuration(0);
-
-      // Start duration timer
       // @ts-expect-error
       timerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
-
     } catch (err) {
       console.error('Failed to start recording', err);
       showError('Recording Failed', 'There was an error starting the recording.');
     }
-  }
+  };
 
-  async function stopRecording() {
+  const stopRecording = async () => {
     if (!recording) return;
 
     try {
-      // Stop the recording
       setIsRecording(false);
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
 
-      // Haptic feedback
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       await recording.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-      });
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
 
-      // Get recording URI
       const uri = recording.getURI();
       if (!uri) {
         throw new Error('Recording URI is null');
       }
 
-      // Process the recording
-      setIsProcessing(true);
-
-      try {
-        // Transcribe audio
-        const text = await transcribeAudio(uri);
-        console.log('OpenAI transcribeAudio:', text);
-        setTranscription(text);
-
-        // Analyze the transcription to extract transaction details
-        const parsedResult = await analyzeTransaction(text);
-
-        // Validate the parsed result before setting state
-        if (parsedResult && typeof parsedResult.amount === 'number' && parsedResult.category) {
-          setParsedTransaction(parsedResult);
-        } else {
-          console.error('Invalid transaction result:', parsedResult);
-          showError(
-            'Processing Error',
-            'Failed to extract transaction details. Please try again.'
-          );
-        }
-      } catch (error) {
-        console.error('Error processing audio:', error);
-        showError(
-          'Processing Error',
-          'Failed to process your recording. Please try again.'
-        );
-      } finally {
-        setIsProcessing(false);
-        setRecording(null);
-      }
-
+      // Transcribe and process
+      const text = await transcribeAudio(uri);
+      setTranscription(text);
+      await processTranscription(text);
     } catch (err) {
       console.error('Failed to stop recording', err);
       showError('Error', 'Failed to stop recording');
-      setIsProcessing(false);
+    } finally {
       setRecording(null);
     }
-  }
+  };
 
-  const handleSaveTransaction = async (transaction: Transaction) => {
-    try {
-      // Ensure the original transcription is preserved in the description
-      const transactionWithText = {
-        ...transaction,
-        description: transcription || transaction.description || ''
-      };
-
-      await addTransaction(transactionWithText);
-
-      // Success feedback
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      // Reset state
-      setTranscription('');
-      setParsedTransaction(null);
-
-      // Show success notification
-      showSuccess('Success', 'Transaction saved successfully!', 2000);
-
-      // Show AdMob interstitial ad with delay, then navigate
-      await showAdWithDelay(2000, () => {
-        router.replace('/');
-      });
-    } catch (error) {
-      console.error('Error saving transaction:', error);
-      showError('Error', 'Failed to save transaction. Please try again.');
+  const handleSaveTransaction = async (transaction: any) => {
+    const success = await saveTransaction(transaction, transcription);
+    if (success) {
+      showSuccess('Success', 'Transaction saved successfully!', 2000)
     }
+    else {
+      showError('Error', 'Failed to save transaction');
+    }
+    showAdWithDelay(3000, () => {
+      router.replace('/');
+    });
   };
 
   const handleCancel = () => {
     setTranscription('');
-    setParsedTransaction(null);
+    cancelTransaction();
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <Text style={[styles.header, { color: colors.text }]}>Record Transaction</Text>
 
-      {/* Custom notification */}
-      <CustomNotification
-        notification={notification}
-        onClose={hideNotification}
-      />
+      <CustomNotification notification={notification} onClose={hideNotification} />
 
-      {/* When we have a parsed transaction, show confirmation screen */}
       {parsedTransaction && parsedTransaction.amount !== undefined && parsedTransaction.category ? (
         <TransactionConfirmation
           transaction={parsedTransaction}
@@ -275,26 +162,12 @@ export default function RecordScreen() {
         />
       ) : (
         <View style={styles.recordingContainer}>
-          {/* Transcription result or instructions */}
           {isProcessing ? (
             <View style={styles.processingContainer}>
               <ActivityIndicator size="large" color={colors.primary} />
               <Text style={[styles.processingText, { color: colors.textSecondary }]}>
                 Processing your recording...
               </Text>
-            </View>
-          ) : transcription ? (
-            <View style={[styles.transcriptionContainer, { backgroundColor: colors.cardAlt }]}>
-              <Text style={[styles.transcriptionTitle, { color: colors.text }]}>Transcription:</Text>
-              <Text style={[styles.transcriptionText, { color: colors.text }]}>
-                {transcription}
-              </Text>
-              <View style={styles.transcriptionNote}>
-                <AlertCircle size={16} color={colors.textSecondary} />
-                <Text style={[styles.transcriptionNoteText, { color: colors.textSecondary }]}>
-                  Processing failed. Please try recording again.
-                </Text>
-              </View>
             </View>
           ) : (
             <View style={styles.instructionsContainer}>
@@ -323,22 +196,21 @@ export default function RecordScreen() {
             </View>
           )}
 
-          {/* Recording button */}
           {!isProcessing && (
-            <TouchableOpacity
-              style={[
-                styles.recordButton,
-                { backgroundColor: isRecording ? colors.error : colors.primary }
-              ]}
-              onPress={isRecording ? stopRecording : startRecording}
-              disabled={isProcessing}
-            >
-              {isRecording ? (
-                <StopCircle size={32} color={colors.white} />
-              ) : (
-                <Mic size={32} color={colors.white} />
-              )}
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={[styles.recordButton, { backgroundColor: isRecording ? colors.error : colors.primary }]}
+                onPress={isRecording ? stopRecording : startRecording}
+                disabled={isProcessing}
+              >
+                {isRecording ? (
+                  <StopCircle size={32} color={colors.white} />
+                ) : (
+                  <Mic size={32} color={colors.white} />
+                )}
+              </TouchableOpacity>
+              <NativeAdComponent style={styles.nativeAdContainer} />
+            </>
           )}
 
           {isRecording && (
@@ -346,6 +218,7 @@ export default function RecordScreen() {
               Tap to stop recording
             </Text>
           )}
+
         </View>
       )}
     </View>
@@ -389,11 +262,6 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     marginBottom: 40,
-  },
-  durationText: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 16,
-    marginTop: 8,
   },
   recordButton: {
     width: 80,
@@ -458,6 +326,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     textAlign: 'center',
     marginTop: 4,
+  },
+  nativeAdContainer: {
+    marginTop: 40,
   },
 });
 

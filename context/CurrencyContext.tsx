@@ -4,6 +4,7 @@ import { useDatabase } from './DatabaseContext';
 import * as SQLite from 'expo-sqlite';
 
 interface Currency {
+  language?: string;
   code: string;
   symbol: string;
   name: string;
@@ -18,11 +19,11 @@ interface CurrencyContextType {
 }
 
 const CURRENCIES = [
-  { code: 'USD', symbol: '$', name: 'US Dollar' },
+  { language: 'en', code: 'USD', symbol: '$', name: 'US Dollar' },
   { code: 'EUR', symbol: '€', name: 'Euro' },
   { code: 'GBP', symbol: '£', name: 'British Pound' },
   { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
-  { code: 'IDR', symbol: 'Rp', name: 'Indonesian Rupiah' },
+  { language: 'id', code: 'IDR', symbol: 'Rp', name: 'Indonesian Rupiah' },
   { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar' },
   { code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit' },
 ];
