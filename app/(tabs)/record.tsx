@@ -15,6 +15,18 @@ import { useNotification } from '@/hooks/useNotification';
 import { Transaction } from '@/types/transaction';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
+import { AdEventType, InterstitialAd, TestIds } from 'react-native-google-mobile-ads';
+import * as Device from 'expo-device';
+
+
+// AdMob configuration
+const adMobInterstitialUnitId = 'ca-app-pub-3827890809706045/7212736994';
+
+// const iosAdmobInterstitial = "ca-app-pub-3827890809706045~1872866125";
+// const androidAdmobInterstitial = "ca-app-pub-3827890809706045~1872866125";
+// const productionID = Device.osName === 'Android' ? androidAdmobInterstitial : iosAdmobInterstitial;
+const adUnitId = __DEV__ ? TestIds.INTERSTITIAL : adMobInterstitialUnitId;
+// Make sure to always use a test ID when not in production 
 
 // Mock function for audio transcription - in a real app, you'd connect to an API
 const transcribeAudio = async (uri: string): Promise<string> => {
@@ -64,6 +76,11 @@ const transcribeAudio = async (uri: string): Promise<string> => {
 
 const MAX_RECORDING_DURATION = 20; // 20 seconds
 
+const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
+  keywords: ['food', 'cooking', 'fruit'], // Update based on the most relevant keywords for your app/users, these are just random examples
+  requestNonPersonalizedAdsOnly: true, // Update based on the initial tracking settings from initialization earlier
+});
+
 export default function RecordScreen() {
   const { colors } = useTheme();
   const { selectedCurrency } = useCurrency();
@@ -83,6 +100,7 @@ export default function RecordScreen() {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [transcription, setTranscription] = useState('');
   const [parsedTransaction, setParsedTransaction] = useState<Transaction | null>(null);
+  const [loaded, setLoaded] = useState<boolean>(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -95,6 +113,30 @@ export default function RecordScreen() {
   const getRemainingTime = () => {
     return MAX_RECORDING_DURATION - recordingDuration;
   };
+
+  useEffect(() => {
+    // Event listener for when the ad is loaded
+    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      setLoaded(true);
+    });
+
+    // Event listener for when the ad is closed
+    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+      setLoaded(false);
+
+      // Load a new ad when the current ad is closed
+      interstitial.load();
+    });
+
+    // Start loading the interstitial ad straight away
+    interstitial.load();
+
+    // Unsubscribe from events on unmount
+    return () => {
+      unsubscribeLoaded();
+      unsubscribeClosed();
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -236,10 +278,21 @@ export default function RecordScreen() {
       // Show success notification
       showSuccess('Success', 'Transaction saved successfully!', 2000);
 
-      // Redirect to home after notification
-      setTimeout(() => {
+      // Show AdMob interstitial ad before redirecting
+      try {
+        if (loaded) {
+          interstitial.show();
+        }
+
+        // Redirect to home after ad is closed
         router.replace('/');
-      }, 2000);
+      } catch (adError) {
+        console.log('AdMob error:', adError);
+        // If ad fails, still redirect after the original timeout
+        setTimeout(() => {
+          router.replace('/');
+        }, 2000);
+      }
     } catch (error) {
       console.error('Error saving transaction:', error);
       showError('Error', 'Failed to save transaction. Please try again.');
@@ -455,3 +508,4 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
+

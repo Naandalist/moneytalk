@@ -2,7 +2,7 @@ export default ({ config }) => ({
   ...config,
   name: 'moneytalk',
   slug: 'moneytalk',
-  version: '1.0.0',
+  version: '1.0.1',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   scheme: 'myapp',
@@ -23,7 +23,26 @@ export default ({ config }) => ({
     output: 'single',
     favicon: './assets/images/favicon.png',
   },
-  plugins: ['expo-router', 'expo-font', 'expo-web-browser', 'expo-dev-client'],
+  plugins: [
+    'expo-router',
+    'expo-font',
+    'expo-web-browser',
+    'expo-dev-client',
+    [
+      'react-native-google-mobile-ads',
+      {
+        androidAppId: 'ca-app-pub-3827890809706045~1872866125',
+        iosAppId: 'ca-app-pub-3827890809706045~1872866125',
+      },
+    ],
+    [
+      'expo-tracking-transparency',
+      {
+        userTrackingPermission:
+          'This identifier will be used to deliver personalized ads to you.',
+      },
+    ],
+  ],
   experiments: {
     typedRoutes: true,
   },
