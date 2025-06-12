@@ -24,6 +24,7 @@ export default ({ config }) => ({
     favicon: './assets/images/favicon.png',
   },
   plugins: [
+    'expo-sqlite',
     'expo-router',
     'expo-font',
     'expo-web-browser',
