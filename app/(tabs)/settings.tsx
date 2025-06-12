@@ -6,11 +6,14 @@ import { Moon, Sun, Trash2, RefreshCcw, Database, Info } from 'lucide-react-nati
 import { useDatabase } from '@/context/DatabaseContext';
 import { useNotification } from '@/hooks/useNotification';
 import CustomNotification from '@/components/CustomNotification';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { Transaction } from '@/types/transaction';
 
 export default function SettingsScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { clearAllTransactions } = useDatabase();
+  const { clearAllTransactions, getAllTransactions } = useDatabase();
   const { notification, showWarning, showInfo, showSuccess, showError, hideNotification } = useNotification();
 
   const handleClearData = () => {
@@ -45,8 +48,55 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleExportData = () => {
-    showInfo('Coming Soon', 'This feature will be available in a future update.');
+  const handleExportData = async () => {
+    try {
+      showInfo('Exporting...', 'Preparing your transaction data for export.');
+      
+      // Get all transactions
+      const transactions = await getAllTransactions();
+      
+      if (transactions.length === 0) {
+        hideNotification();
+        showInfo('No Data', 'No transactions found to export.');
+        return;
+      }
+
+      // Convert transactions to CSV format
+      const csvHeader = 'ID,Date,Type,Category,Amount,Description\n';
+      const csvData = transactions.map(transaction => {
+        const date = new Date(transaction.date).toLocaleDateString();
+        const description = (transaction.description || '').replace(/"/g, '""'); // Escape quotes
+        return `${transaction.id},"${date}","${transaction.type}","${transaction.category}",${transaction.amount},"${description}"`;
+      }).join('\n');
+      
+      const csvContent = csvHeader + csvData;
+      
+      // Create file path
+      const fileName = `moneytalk_transactions_${new Date().toISOString().split('T')[0]}.csv`;
+      const fileUri = FileSystem.documentDirectory + fileName;
+      
+      // Write CSV file
+      await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      
+      // Share the file
+      if (await Sharing.isAvailableAsync()) {
+        hideNotification();
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Export Transaction Data',
+        });
+        showSuccess('Export Complete', `Successfully exported ${transactions.length} transactions.`);
+      } else {
+        hideNotification();
+        showError('Export Failed', 'Sharing is not available on this device.');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      hideNotification();
+      showError('Export Failed', 'Failed to export transaction data. Please try again.');
+    }
   };
 
   const handleSyncData = () => {

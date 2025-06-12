@@ -6,22 +6,24 @@ type DatabaseContextType = {
   isReady: boolean;
   addTransaction: (transaction: Transaction) => Promise<number>;
   getRecentTransactions: (limit: number) => Promise<Transaction[]>;
+  getAllTransactions: () => Promise<Transaction[]>;
   getTransactionsByCategory: (period: string) => Promise<any[]>;
   getTransactionsByPeriod: (period: string) => Promise<Transaction[]>;
   getBalance: () => Promise<{ income: number, expenses: number }>;
   clearAllTransactions: () => Promise<void>;
-  deleteTransaction: (id: number) => Promise<void>; // Add this line
+  deleteTransaction: (id: number) => Promise<void>;
 };
 
 const DatabaseContext = createContext<DatabaseContextType>({
   isReady: false,
   addTransaction: async () => 0,
   getRecentTransactions: async () => [],
+  getAllTransactions: async () => [], // Add this line
   getTransactionsByCategory: async () => [],
   getTransactionsByPeriod: async () => [],
   getBalance: async () => ({ income: 0, expenses: 0 }),
   clearAllTransactions: async () => { },
-  deleteTransaction: async () => { }, // Add this line
+  deleteTransaction: async () => { },
 });
 
 export const useDatabase = () => useContext(DatabaseContext);
@@ -91,6 +93,17 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const result = await db.getAllAsync(
         `SELECT * FROM transactions ORDER BY date DESC LIMIT ?`,
         [limit]
+      );
+      return result as Transaction[];
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const getAllTransactions = async (): Promise<Transaction[]> => {
+    try {
+      const result = await db.getAllAsync(
+        `SELECT * FROM transactions ORDER BY date DESC`
       );
       return result as Transaction[];
     } catch (error) {
@@ -204,6 +217,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       isReady,
       addTransaction,
       getRecentTransactions,
+      getAllTransactions, // Add this line
       getTransactionsByCategory,
       getTransactionsByPeriod,
       getBalance,
