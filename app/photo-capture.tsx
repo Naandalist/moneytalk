@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '@/context/ThemeContext';
@@ -14,6 +14,7 @@ import CustomNotification from '@/components/CustomNotification';
 import { useNotification } from '@/hooks/useNotification';
 import * as Haptics from 'expo-haptics';
 import { useAdMob } from '@/utils/admob';
+import { NativeAd, NativeAdView, NativeAsset, NativeAssetType, NativeMediaView, TestIds } from 'react-native-google-mobile-ads';
 
 export default function PhotoCaptureScreen() {
     const { colors } = useTheme();
@@ -28,7 +29,13 @@ export default function PhotoCaptureScreen() {
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [parsedTransaction, setParsedTransaction] = useState<Transaction | null>(null);
+    const [nativeAd, setNativeAd] = useState<NativeAd>();
 
+    useEffect(() => {
+        NativeAd.createForAdRequest(__DEV__ ? TestIds.NATIVE : 'ca-app-pub-3827890809706045/2435262461')
+            .then(setNativeAd)
+            .catch(console.error);
+    }, []);
     const requestPermissions = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
@@ -272,7 +279,23 @@ export default function PhotoCaptureScreen() {
                 )}
             </View>
 
+
+
             <CustomNotification notification={notification} onClose={hideNotification} />
+
+            {nativeAd && (
+                <View style={styles.nativeAdContainer}>
+                    <NativeAdView nativeAd={nativeAd}>
+                        <NativeAsset assetType={NativeAssetType.HEADLINE}>
+                            <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
+                                {nativeAd.headline}
+                            </Text>
+                        </NativeAsset>
+                        <Text>Sponsored</Text>
+                        <NativeMediaView />
+                    </NativeAdView>
+                </View>
+            )}
         </View>
     );
 }
@@ -347,4 +370,12 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontFamily: 'Inter-Medium',
     },
+    nativeAdContainer: {
+        marginTop: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+    }
 });

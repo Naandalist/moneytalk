@@ -482,7 +482,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   nativeAdContainer: {
-    marginTop: 40,
+    marginTop: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   }
 });
 
