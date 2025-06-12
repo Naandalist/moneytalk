@@ -16,6 +16,7 @@ import { Transaction } from '@/types/transaction';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAdMob } from '@/utils/admob';
+import { NativeAd, NativeAdView, NativeAsset, NativeAssetType, NativeMediaView, TestIds } from 'react-native-google-mobile-ads';
 
 // Mock function for audio transcription - in a real app, you'd connect to an API
 const transcribeAudio = async (uri: string): Promise<string> => {
@@ -81,12 +82,19 @@ export default function RecordScreen() {
   // Use the AdMob hook
   const { showAdWithDelay, isAdLoaded } = useAdMob(['food', 'car', 'fruit', 'finance', 'app', 'kids', 'family', 'cooking', 'travel']);
 
+  const [nativeAd, setNativeAd] = useState<NativeAd>();
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [transcription, setTranscription] = useState('');
   const [parsedTransaction, setParsedTransaction] = useState<Transaction | null>(null);
+
+  useEffect(() => {
+    NativeAd.createForAdRequest(__DEV__ ? TestIds.NATIVE : 'ca-app-pub-3827890809706045/2435262461')
+      .then(setNativeAd)
+      .catch(console.error);
+  }, []);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -346,6 +354,20 @@ export default function RecordScreen() {
               Tap to stop recording
             </Text>
           )}
+
+          {nativeAd && (
+            <View style={styles.nativeAdContainer}>
+              <NativeAdView nativeAd={nativeAd}>
+                <NativeAsset assetType={NativeAssetType.HEADLINE}>
+                  <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
+                    {nativeAd.headline}
+                  </Text>
+                </NativeAsset>
+                <Text>Sponsored</Text>
+                <NativeMediaView />
+              </NativeAdView>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -459,5 +481,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
+  nativeAdContainer: {
+    marginTop: 40,
+  }
 });
 
