@@ -218,8 +218,8 @@ export default function HomeScreen() {
 
         {transactions.length > 0 ? (
           transactions.map((transaction, index) => (
-            <>
-              {((index + 1) % 3 === 0 || (transactions.length < 3 && index === 0)) && <NativeAdCard key={index} />}
+            <View key={`view-${transaction.id.toString()}`}>
+              {((index + 1) % 3 === 0 || (transactions.length < 3 && index === 0)) && <NativeAdCard key={`ads-${transaction.id.toString()}`} />}
               <TransactionCard
                 // @ts-expect-error
                 key={transaction.id.toString()}
@@ -227,17 +227,17 @@ export default function HomeScreen() {
                 onPress={() => handleTransactionLongPress(transaction)}
                 onLongPress={() => handleTransactionLongPress(transaction)}
               />
-            </>
+            </View>
           ))
         ) : (
-          <>
-            <NativeAdCard />
+          <View key={'view-ads-empty'}>
+            <NativeAdCard key={'ads-empty'} />
             <View style={[styles.emptyState, { backgroundColor: colors.cardAlt }]}>
               <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
                 No transactions yet. Tap the record button to add your first transaction!
               </Text>
             </View>
-          </>
+          </View>
         )}
       </ScrollView>
 

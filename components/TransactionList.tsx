@@ -27,13 +27,13 @@ export default function TransactionList({ transactions }: TransactionListProps) 
       data={transactions}
       keyExtractor={(item) => item.id.toString()}
       renderItem={({ item, index }) => (
-        <>
+        <View key={`view-${index}`}>
           {((index + 1) % 3 === 0 || (transactions.length < 3 && index === 0)) && <NativeAdCard key={index} />}
           <TransactionCard
             transaction={item}
             onPress={() => { }}
           />
-        </>
+        </View>
       )}
       style={styles.list}
       scrollEnabled={false}
