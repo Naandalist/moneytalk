@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { CurrencyProvider } from '@/context/CurrencyContext';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
@@ -9,12 +9,46 @@ import { DatabaseProvider } from '@/context/DatabaseContext';
 import * as SplashScreen from 'expo-splash-screen';
 import mobileAds from 'react-native-google-mobile-ads';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
+import { appOpenAdManager } from '@/utils/appOpenAd';
+import { AppState, AppStateStatus } from 'react-native';
 
 // Keep the splash screen visible until we're ready
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   useFrameworkReady();
+  const [appState, setAppState] = useState(AppState.currentState);
+  const [isFirstLaunch, setIsFirstLaunch] = useState(true);
+  const [hasShownInitialAd, setHasShownInitialAd] = useState(false);
+
+  useEffect(() => {
+    // Show welcome ad on first app launch
+    if (isFirstLaunch && !hasShownInitialAd) {
+      const timer = setTimeout(() => {
+        appOpenAdManager.showAdIfAvailable();
+        setIsFirstLaunch(false);
+        setHasShownInitialAd(true);
+      }, 4000); // Small delay to ensure app is fully loaded
+
+      return () => clearTimeout(timer);
+    }
+  }, [isFirstLaunch, hasShownInitialAd]);
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      // Only show ad when app comes from background to foreground
+      // and not during tab navigation (which also triggers inactive->active)
+      if (appState === 'background' && nextAppState === 'active' && hasShownInitialAd) {
+        // App came from background to foreground, show ad if available
+        appOpenAdManager.showAdIfAvailable();
+      }
+      setAppState(nextAppState);
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [appState, hasShownInitialAd]);
+
 
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
