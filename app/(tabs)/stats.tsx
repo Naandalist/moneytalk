@@ -10,6 +10,7 @@ import TransactionList from '@/components/TransactionList';
 import { categoryColors } from '@/utils/categories';
 import { formatCurrency } from '@/utils/formatters';
 import { useFocusEffect } from '@react-navigation/native';
+import { NativeAdCard } from '@/components/NativeAdCard';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -236,7 +237,7 @@ export default function StatsScreen() {
             </Text>
           </View>
         </View>
-
+        <NativeAdCard />
         {/* Category breakdown */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Spending by Category</Text>
 

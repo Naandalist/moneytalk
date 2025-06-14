@@ -20,9 +20,10 @@ export default function PhotoCaptureScreen() {
     const { colors } = useTheme();
     const insets = useSafeAreaInsets();
     const { notification, hideNotification, showError, showSuccess } = useNotification();
+    const [isProcessing, setIsProcessing] = useState(false);
 
     // Custom hooks
-    const { analyzeImage, isProcessing } = useOpenAI({
+    const { analyzeImage } = useOpenAI({
         onError: (error) => showError('Error', error)
     });
     const {
@@ -81,6 +82,7 @@ export default function PhotoCaptureScreen() {
         if (!selectedImage) return;
 
         try {
+            setIsProcessing(true)
             const parsedResult = await analyzeImage(selectedImage);
             console.log({ parsedResult });
             const transaction: Transaction = {
@@ -94,9 +96,11 @@ export default function PhotoCaptureScreen() {
 
             setParsedTransaction(transaction);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setIsProcessing(false)
         } catch (error) {
             console.error('Error analyzing receipt:', error);
             showError('Error', 'Failed to analyze receipt. Please try again.');
+            setIsProcessing(false);
         }
     };
 
@@ -108,6 +112,7 @@ export default function PhotoCaptureScreen() {
         else {
             showError('Error', 'Failed to save transaction');
         }
+        setSelectedImage(null);
         showAdWithDelay(3000, () => {
             router.replace('/');
         });
@@ -142,6 +147,7 @@ export default function PhotoCaptureScreen() {
                 ) : selectedImage ? (
                     <View style={styles.imageContainer}>
                         <Image source={{ uri: selectedImage }} style={styles.previewImage} />
+                        <NativeAdComponent style={styles.nativeAdContainerMiddle} />
                         <View style={styles.imageActions}>
                             <TouchableOpacity
                                 style={[styles.actionButton, { backgroundColor: colors.cardAlt }]}
@@ -164,10 +170,10 @@ export default function PhotoCaptureScreen() {
                 ) : (
                     <>
                         <View style={styles.captureOptions}>
+                            <NativeAdComponent style={styles.nativeAdContainerMiddle} />
                             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                                 Take a photo of your receipt or select from gallery
                             </Text>
-
                             <TouchableOpacity
                                 style={[styles.captureButton, { backgroundColor: colors.primary }]}
                                 onPress={takePhoto}
@@ -184,7 +190,6 @@ export default function PhotoCaptureScreen() {
                                 <Text style={[styles.captureButtonText, { color: colors.text }]}>Choose from Gallery</Text>
                             </TouchableOpacity>
                         </View>
-                        <NativeAdComponent style={styles.nativeAdContainer} />
                     </>
                 )}
             </View>
@@ -248,7 +253,7 @@ const styles = StyleSheet.create({
     previewImage: {
         flex: 1,
         borderRadius: 12,
-        marginBottom: 20,
+        marginBottom: 10,
     },
     imageActions: {
         flexDirection: 'row',
@@ -266,6 +271,11 @@ const styles = StyleSheet.create({
     },
     nativeAdContainer: {
         alignItems: 'center',
-        marginBottom: 40,
+        marginBottom: 10,
     },
+    nativeAdContainerMiddle: {
+        alignItems: 'center',
+        marginBottom: 0,
+        marginTop: 0,
+    }
 });

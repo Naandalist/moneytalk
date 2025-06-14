@@ -162,6 +162,7 @@ export default function RecordScreen() {
         />
       ) : (
         <View style={styles.recordingContainer}>
+          <NativeAdComponent style={styles.nativeAdContainer} />
           {isProcessing ? (
             <View style={styles.processingContainer}>
               <ActivityIndicator size="large" color={colors.primary} />
@@ -209,7 +210,6 @@ export default function RecordScreen() {
                   <Mic size={32} color={colors.white} />
                 )}
               </TouchableOpacity>
-              <NativeAdComponent style={styles.nativeAdContainer} />
             </>
           )}
 
@@ -328,7 +328,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   nativeAdContainer: {
-    marginTop: 40,
+    marginTop: 0,
+    marginBottom: 40,
   },
 });
 

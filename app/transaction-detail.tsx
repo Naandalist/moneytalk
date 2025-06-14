@@ -19,6 +19,7 @@ import { formatCurrency, formatDate } from '@/utils/formatters';
 import { getCategoryIcon, categoryList } from '@/utils/categories';
 import { ArrowLeft, Edit3, Trash2, Save, X } from 'lucide-react-native';
 import CustomNotification from '@/components/CustomNotification';
+import { NativeAdCard } from '@/components/NativeAdCard';
 
 export default function TransactionDetailScreen() {
     const { colors } = useTheme();
@@ -191,11 +192,18 @@ export default function TransactionDetailScreen() {
                             />
                         </View>
                     ) : (
-                        <Text style={[styles.amount, { color: amountColor }]}>
-                            {amountPrefix}{formatCurrency(Math.abs(transaction.amount), selectedCurrency.code)}
-                        </Text>
+                        <>
+                            <Text style={[styles.amount, { color: amountColor }]}>
+                                {amountPrefix}{formatCurrency(Math.abs(transaction.amount), selectedCurrency.code)}
+                            </Text>
+                            <Text style={[styles.typeButtonText, { color: editForm.type === 'income' ? colors.white : colors.text }]}>
+                                Income
+                            </Text>
+                        </>
                     )}
                 </View>
+
+                <NativeAdCard />
 
                 {/* Category Section */}
                 <View style={[styles.section, { backgroundColor: colors.card }]}>

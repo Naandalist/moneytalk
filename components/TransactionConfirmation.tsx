@@ -7,6 +7,7 @@ import { Transaction } from '@/types/transaction';
 import { Check, X, Save, Calendar, Clock } from 'lucide-react-native';
 import { categoryList, getCategoryIcon } from '@/utils/categories';
 import { formatCurrency } from 'react-native-format-currency';
+import { NativeAdComponent } from './NativeAdComponent';
 
 type TransactionConfirmationProps = {
   transaction: Transaction;
@@ -263,7 +264,16 @@ export default function TransactionConfirmation({
               />
             </View>
           </View>
-
+          <NativeAdComponent
+            style={[
+              styles.adContainer,
+              {
+                // Override internal styles
+                marginTop: 0,
+                paddingVertical: 8,
+              }
+            ]}
+          />
           {/* Description Input */}
           <View style={styles.descriptionContainer}>
             <Text style={[styles.descriptionLabel, { color: colors.textSecondary }]}>Description</Text>
@@ -608,4 +618,13 @@ const styles = StyleSheet.create({
   dateTimeText: {
     fontSize: 16,
   },
+  adContainer: {
+    marginTop: 0,
+    marginBottom: 0,
+    maxHeight: 150,
+    overflow: 'hidden', // This ensures content is clipped
+    // Override the internal component styles
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  }
 });

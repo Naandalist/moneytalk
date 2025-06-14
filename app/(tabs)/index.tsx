@@ -34,7 +34,7 @@ export default function HomeScreen() {
   const recordButtonAnimation = useRef(new Animated.Value(0)).current;
 
   const loadData = useCallback(async () => {
-    const recentTransactions = await getRecentTransactions(5);
+    const recentTransactions = await getRecentTransactions(6);
     // @ts-expect-error
     setTransactions(recentTransactions);
 

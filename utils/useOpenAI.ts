@@ -107,7 +107,7 @@ export const useOpenAI = (options: UseOpenAIOptions = {}) => {
                   role: 'user',
                   content: [{
                     type: 'text',
-                    text: 'Analyze this receipt and extract transaction information. Return a JSON object with: amount (number), description (string), category (one of: food, transport, shopping, entertainment, bills, health, education, other), type ("expense" or "income"), and items (array of item names and prices if visible). Focus on the total amount and main purchase category.'
+                    text: 'Analyze this receipt and extract transaction information. Return a JSON object with: amount (number), description (string), category (one of: Groceries, Dining, Housing, Transport, Healthcare, Personal, Education, Income, Salary, Bills, Shopping, Other), type ("expense" or "income"), and items (array of item names and prices if visible). Focus on the total amount and main purchase category.'
                   }, {
                     type: 'image_url',
                     image_url: {

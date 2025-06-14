@@ -10,6 +10,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import { Transaction } from '@/types/transaction';
+import { NativeAdCard } from '@/components/NativeAdCard';
 
 export default function SettingsScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
@@ -183,6 +184,7 @@ export default function SettingsScreen() {
               thumbColor={colors.white}
             />
           </View>
+          <NativeAdCard />
         </View>
 
         <View style={styles.section}>
