@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '@/context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Camera, Image as ImageIcon, ArrowLeft } from 'lucide-react-native';
+import { Image as ImageIcon, ArrowLeft } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { Transaction } from '@/types/transaction';
 import TransactionConfirmation from '@/components/TransactionConfirmation';
@@ -35,46 +35,20 @@ export default function PhotoCaptureScreen() {
 
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-    const requestPermissions = async () => {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-            Alert.alert('Permission needed', 'Please grant camera roll permissions to upload receipts.');
-            return false;
-        }
-        return true;
-    };
-
-    const takePhoto = async () => {
-        const hasPermission = await requestPermissions();
-        if (!hasPermission) return;
-
-        const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [3, 4],
-            quality: 0.8,
-        });
-
-        if (!result.canceled) {
-            setSelectedImage(result.assets[0].uri);
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        }
-    };
-
     const pickImage = async () => {
-        const hasPermission = await requestPermissions();
-        if (!hasPermission) return;
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: 'image/*',
+                copyToCacheDirectory: true,
+            });
 
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 0.8,
-        });
-
-        if (!result.canceled) {
-            setSelectedImage(result.assets[0].uri);
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            if (!result.canceled && result.assets && result.assets[0]) {
+                setSelectedImage(result.assets[0].uri);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }
+        } catch (error) {
+            console.error('Error picking image:', error);
+            Alert.alert('Error', 'Failed to select image. Please try again.');
         }
     };
 
@@ -172,15 +146,8 @@ export default function PhotoCaptureScreen() {
                         <View style={styles.captureOptions}>
                             <NativeAdComponent style={styles.nativeAdContainerMiddle} />
                             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                                Take a photo of your receipt or select from gallery
+                                Select receipt from gallery
                             </Text>
-                            <TouchableOpacity
-                                style={[styles.captureButton, { backgroundColor: colors.primary }]}
-                                onPress={takePhoto}
-                            >
-                                <Camera color={colors.white} size={32} />
-                                <Text style={[styles.captureButtonText, { color: colors.white }]}>Take Photo</Text>
-                            </TouchableOpacity>
 
                             <TouchableOpacity
                                 style={[styles.captureButton, { backgroundColor: colors.cardAlt }]}

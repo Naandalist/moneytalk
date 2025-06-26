@@ -8,8 +8,7 @@ import { useNotification } from '@/hooks/useNotification';
 import CustomNotification from '@/components/CustomNotification';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import * as MediaLibrary from 'expo-media-library';
-import { Transaction } from '@/types/transaction';
+
 import { NativeAdCard } from '@/components/NativeAdCard';
 
 export default function SettingsScreen() {
@@ -90,31 +89,22 @@ export default function SettingsScreen() {
         'Choose how you want to save your transaction data:',
         [
           {
-            text: 'Save to Device',
+            text: 'Export & Save',
             onPress: async () => {
+              // Direct file sharing instead of saving to media library
               try {
-                // Request permissions for media library
-                const { status } = await MediaLibrary.requestPermissionsAsync();
-
-                if (status !== 'granted') {
-                  showError('Permission Denied', 'Permission to access media library is required to save files.');
-                  return;
-                }
-
-                // Save to device's Downloads folder
-                const asset = await MediaLibrary.createAssetAsync(fileUri);
-                const album = await MediaLibrary.getAlbumAsync('Download');
-
-                if (album == null) {
-                  await MediaLibrary.createAlbumAsync('Download', asset, false);
+                if (await Sharing.isAvailableAsync()) {
+                  await Sharing.shareAsync(fileUri, {
+                    mimeType: 'text/csv',
+                    dialogTitle: 'Save Transaction Data',
+                  });
+                  showSuccess('Export Complete', `Successfully exported ${transactions.length} transactions. Use your device's file manager to save the file.`);
                 } else {
-                  await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+                  showError('Export Failed', 'File sharing is not available on this device.');
                 }
-
-                showSuccess('Saved to Device', `File saved to Downloads folder: ${fileName}`);
               } catch (error) {
-                console.error('Save to device error:', error);
-                showError('Save Failed', 'Failed to save file to device. Please try sharing instead.');
+                console.error('Save error:', error);
+                showError('Save Failed', 'Failed to export file. Please try again.');
               }
             }
           },

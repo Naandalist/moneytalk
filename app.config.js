@@ -2,7 +2,7 @@ export default ({ config }) => ({
   ...config,
   name: 'moneytalk',
   slug: 'moneytalk',
-  version: '1.0.1',
+  version: '1.0.9',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   splash: {
@@ -22,7 +22,20 @@ export default ({ config }) => ({
       foregroundImage: './assets/images/icon.png',
       backgroundColor: '#ffffff',
     },
-    permissions: ['com.google.android.gms.permission.AD_ID'],
+    permissions: [
+      'com.google.android.gms.permission.AD_ID',
+      'android.permission.INTERNET',
+      'android.permission.ACCESS_NETWORK_STATE',
+      'android.permission.RECORD_AUDIO',
+      'android.permission.VIBRATE',
+    ],
+    blockedPermissions: [
+      'android.permission.READ_MEDIA_IMAGES',
+      'android.permission.READ_MEDIA_VIDEO',
+      'android.permission.READ_EXTERNAL_STORAGE',
+      'android.permission.WRITE_EXTERNAL_STORAGE',
+      'android.permission.CAMERA',
+    ],
   },
   web: {
     bundler: 'metro',
