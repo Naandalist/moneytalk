@@ -5,6 +5,11 @@ export default ({ config }) => ({
   version: '1.0.1',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
+  splash: {
+    image: './assets/images/icon.png',
+    resizeMode: 'contain',
+    backgroundColor: '#ffffff',
+  },
   scheme: 'myapp',
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
@@ -17,6 +22,7 @@ export default ({ config }) => ({
       foregroundImage: './assets/images/icon.png',
       backgroundColor: '#ffffff',
     },
+    permissions: ['com.google.android.gms.permission.AD_ID'],
   },
   web: {
     bundler: 'metro',
