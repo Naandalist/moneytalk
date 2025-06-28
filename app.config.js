@@ -30,6 +30,7 @@ export default ({ config }) => ({
       NSHapticsUsageDescription:
         'This app uses haptic feedback to enhance your experience when recording transactions.',
       UIBackgroundModes: ['audio'],
+      ITSAppUsesNonExemptEncryption: false,
     },
   },
   android: {
