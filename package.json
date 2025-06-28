@@ -2,7 +2,7 @@
   "name": "moneytalk",
   "slug": "moneytalk",
   "main": "expo-router/entry",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "private": true,
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 expo start",
