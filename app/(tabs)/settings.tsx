@@ -146,7 +146,7 @@ export default function SettingsScreen() {
   };
 
   const handleAbout = () => {
-    showInfo('About', 'MoneyTalk v1.0.0\nA voice-powered expense tracker.\n\nCreated by Randhi Putra\nhttps://www.linkedin.com/in/randhipp/', 5000);
+    showInfo('About', 'MoneyTalk v1.0.10\nA voice-powered expense tracker.\n\nCreated by Randhi Putra\nhttps://www.linkedin.com/in/randhipp/', 5000);
   };
 
   return (
