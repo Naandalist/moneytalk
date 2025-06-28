@@ -26,7 +26,7 @@ export default function SummaryCard({ balance, income, expenses }: SummaryCardPr
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
           <View style={styles.statHeader}>
-            <ArrowUpRight size={16} color={colors.success} />
+            <ArrowDownRight size={16} color={colors.success} />
             <Text style={[styles.statLabel, { color: colors.white }]}>
               Income
             </Text>
@@ -40,7 +40,7 @@ export default function SummaryCard({ balance, income, expenses }: SummaryCardPr
         
         <View style={styles.statItem}>
           <View style={styles.statHeader}>
-            <ArrowDownRight size={16} color={colors.error} />
+            <ArrowUpRight size={16} color={colors.error} />
             <Text style={[styles.statLabel, { color: colors.white }]}>
               Expenses
             </Text>
