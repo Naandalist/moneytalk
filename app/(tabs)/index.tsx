@@ -9,7 +9,6 @@ import { useNotification } from '@/hooks/useNotification';
 import { formatCurrency } from '@/utils/formatters';
 import { useEffect, useState, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CirclePlus as PlusCircle, Camera, Mic, X } from 'lucide-react-native';
 import { router } from 'expo-router';
 import SummaryCard from '@/components/SummaryCard';
 import { useFocusEffect } from '@react-navigation/native';
@@ -107,16 +106,6 @@ export default function HomeScreen() {
     ]).start();
 
     setIsFabExpanded(false);
-  };
-
-  const navigateToRecord = () => {
-    collapseFabMenu();
-    router.push('/record');
-  };
-
-  const navigateToPhotoCapture = () => {
-    collapseFabMenu();
-    router.push('/photo-capture');
   };
 
   const handleTransactionLongPress = (transaction: Transaction) => {
@@ -240,120 +229,6 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
-
-      <View style={styles.fabContainer}>
-        {/* Camera Button */}
-        <Animated.View
-          style={[
-            styles.expandedFabButton,
-            {
-              transform: [
-                {
-                  translateY: cameraButtonAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, -140], // Increased from -120 to -140
-                  }),
-                },
-                {
-                  scale: cameraButtonAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 1],
-                  }),
-                },
-              ],
-              opacity: cameraButtonAnimation,
-            },
-          ]}
-        >
-          <TouchableOpacity
-            style={[styles.secondaryFab, { backgroundColor: colors.cardAlt }]}
-            onPress={navigateToPhotoCapture}
-            disabled={!isFabExpanded}
-          >
-            <Camera color={colors.text} size={24} />
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* Record Button */}
-        <Animated.View
-          style={[
-            styles.expandedFabButton,
-            {
-              transform: [
-                {
-                  translateY: recordButtonAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, -75], // Increased from -70 to -85
-                  }),
-                },
-                {
-                  scale: recordButtonAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 1],
-                  }),
-                },
-              ],
-              opacity: recordButtonAnimation,
-            },
-          ]}
-        >
-          <TouchableOpacity
-            style={[styles.secondaryFab, { backgroundColor: colors.cardAlt }]}
-            onPress={navigateToRecord}
-            disabled={!isFabExpanded}
-          >
-            <Mic color={colors.text} size={24} />
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* Main FAB */}
-        <Animated.View
-          style={{
-            transform: [
-              {
-                rotate: fabAnimation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ['0deg', '45deg'],
-                }),
-              },
-            ],
-          }}
-        >
-          <TouchableOpacity
-            style={[styles.fab, { backgroundColor: colors.primary }]}
-            onPress={toggleFabMenu}
-          >
-            <Animated.View
-              style={{
-                opacity: fabAnimation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 0],
-                }),
-                position: 'absolute',
-              }}
-            >
-              <PlusCircle color={colors.white} size={28} />
-            </Animated.View>
-            <Animated.View
-              style={{
-                opacity: fabAnimation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 1],
-                }),
-                transform: [{
-                  rotate: fabAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ['0deg', '45deg'],
-                  }),
-                }],
-                position: 'absolute',
-              }}
-            >
-              <X color={colors.white} size={28} />
-            </Animated.View>
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
 
       <CustomNotification notification={notification} onClose={hideNotification} />
       {renderOnboardingModal()}

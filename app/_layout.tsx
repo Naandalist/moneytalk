@@ -38,7 +38,7 @@ export default function RootLayout() {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       // Only show ad when app comes from background to foreground
       // and not during tab navigation (which also triggers inactive->active)
-      if (appState === 'background' && nextAppState === 'active' && hasShownInitialAd) {
+      if (appState === 'background' && nextAppState === 'active' && !hasShownInitialAd) {
         // App came from background to foreground, show ad if available
         appOpenAdManager.showAdIfAvailable();
       }

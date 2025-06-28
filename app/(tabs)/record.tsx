@@ -5,7 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mic, CircleStop as StopCircle, CircleAlert as AlertCircle } from 'lucide-react-native';
+import { CircleStop as StopCircle } from 'lucide-react-native';
 import RecordingWaveform from '@/components/RecordingWaveform';
 import TransactionConfirmation from '@/components/TransactionConfirmation';
 import CustomNotification from '@/components/CustomNotification';
@@ -134,13 +134,13 @@ export default function RecordScreen() {
     const success = await saveTransaction(transaction, transcription);
     if (success) {
       showSuccess('Success', 'Transaction saved successfully!', 2000)
+      showAdWithDelay(3000, () => {
+        router.replace('/');
+      });
     }
     else {
       showError('Error', 'Failed to save transaction');
     }
-    showAdWithDelay(3000, () => {
-      router.replace('/');
-    });
   };
 
   const handleCancel = () => {
@@ -178,7 +178,7 @@ export default function RecordScreen() {
               <Text style={[styles.instructionsText, { color: colors.textSecondary }]}>
                 {isRecording
                   ? 'Speak clearly about your transaction.'
-                  : `Tap the microphone and describe your transaction.\nExample: "I spent ${selectedCurrency.symbol}24 on lunch today" or\n"I received ${selectedCurrency.symbol}2000 from my salary"`}
+                  : `Examples:\n"I spent ${selectedCurrency.symbol}24 on lunch today"\n"I received ${selectedCurrency.symbol}2000 from my salary"`}
               </Text>
             </View>
           )}
@@ -200,14 +200,16 @@ export default function RecordScreen() {
           {!isProcessing && (
             <>
               <TouchableOpacity
-                style={[styles.recordButton, { backgroundColor: isRecording ? colors.error : colors.primary }]}
+                style={[styles.recordButton, { backgroundColor: isRecording ? colors.error : colors.primaryLight }]}
                 onPress={isRecording ? stopRecording : startRecording}
                 disabled={isProcessing}
               >
                 {isRecording ? (
-                  <StopCircle size={32} color={colors.white} />
+                  <StopCircle size={40} color={colors.white} />
                 ) : (
-                  <Mic size={32} color={colors.white} />
+                  <View style={styles.recordIconContainer}>
+                    <Text style={styles.recordText}>Tap to record</Text>
+                  </View>
                 )}
               </TouchableOpacity>
             </>
@@ -242,7 +244,7 @@ const styles = StyleSheet.create({
   },
   instructionsContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 20,
     paddingHorizontal: 20,
   },
   instructionsTitle: {
@@ -264,16 +266,26 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   recordButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 5,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+  recordIconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recordText: {
+    color: 'white',
+    fontFamily: 'Inter-Bold',
+    fontSize: 16,
+    textAlign: 'center',
   },
   tapToStop: {
     fontFamily: 'Inter-Regular',
@@ -329,7 +341,7 @@ const styles = StyleSheet.create({
   },
   nativeAdContainer: {
     marginTop: 0,
-    marginBottom: 40,
+    marginBottom: 20,
   },
 });
 

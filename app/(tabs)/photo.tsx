@@ -82,14 +82,14 @@ export default function PhotoCaptureScreen() {
         const success = await saveTransaction(transaction);
         if (success) {
             showSuccess('Success', 'Transaction saved successfully!', 2000)
+            showAdWithDelay(3000, () => {
+                router.replace('/');
+            });
         }
         else {
             showError('Error', 'Failed to save transaction');
         }
         setSelectedImage(null);
-        showAdWithDelay(3000, () => {
-            router.replace('/');
-        });
     };
 
     const handleCancel = () => {
