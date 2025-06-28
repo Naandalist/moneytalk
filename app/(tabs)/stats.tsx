@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { Transaction } from '@/types/transaction';
 import { useTheme } from '@/context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '@/context/DatabaseContext';
@@ -11,33 +12,80 @@ import { categoryColors } from '@/utils/categories';
 import { formatCurrency } from '@/utils/formatters';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeAdCard } from '@/components/NativeAdCard';
+import { generateSuggestion } from '@/utils/suggestionGenerator';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const screenWidth = Dimensions.get('window').width;
 
+interface PieChartData {
+  name: string;
+  amount: number;
+  color: string;
+  legendFontColor: string;
+  legendFontSize: number;
+}
+
 export default function StatsScreen() {
+  const SUGGESTION_CACHE_KEY = 'ai_suggestion_cache';
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { getTransactionsByPeriod, getTransactionsByCategory } = useDatabase();
   const { selectedCurrency } = useCurrency();
 
-  const [transactions, setTransactions] = useState([]);
-  const [categoryData, setCategoryData] = useState([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categoryData, setCategoryData] = useState<PieChartData[]>([]);
   const [timelineData, setTimelineData] = useState({
     labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
     datasets: [{ data: [0, 0, 0, 0, 0, 0, 0] }]
   });
   const [period, setPeriod] = useState('week'); // 'week', 'month', 'year'
+  const [suggestion, setSuggestion] = useState('');
+  const [loadingSuggestion, setLoadingSuggestion] = useState(false);
 
   useEffect(() => {
     loadData();
+    loadSuggestion();
   }, [period]);
 
   // Add focus effect to reload data when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
       loadData();
+      loadSuggestion();
     }, [period])
   );
+
+  const loadSuggestion = async () => {
+    setLoadingSuggestion(true);
+    try {
+      // Check for cached suggestion
+      const cachedData = await AsyncStorage.getItem(SUGGESTION_CACHE_KEY);
+      if (cachedData) {
+        const { suggestion, timestamp } = JSON.parse(cachedData);
+        const isCacheValid = (new Date().getTime() - timestamp) < 24 * 60 * 60 * 1000; // 24 hours
+        if (isCacheValid) {
+          setSuggestion(suggestion);
+        }
+      } else {
+        const thisWeekTransactions = await getTransactionsByPeriod('week');
+        const lastMonthTransactions = await getTransactionsByPeriod('month');
+        const newSuggestion = await generateSuggestion(thisWeekTransactions, lastMonthTransactions);
+
+        // Cache the new suggestion
+        const newCacheData = {
+          suggestion: newSuggestion,
+          timestamp: new Date().getTime(),
+        };
+        await AsyncStorage.setItem(SUGGESTION_CACHE_KEY, JSON.stringify(newCacheData));
+        setSuggestion(newSuggestion);
+      }
+    } catch (error) {
+      console.error('Error loading suggestion:', error);
+      setSuggestion('Could not load suggestion.');
+    } finally {
+      setLoadingSuggestion(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -237,6 +285,17 @@ export default function StatsScreen() {
             </Text>
           </View>
         </View>
+
+        {/* AI Suggestion Card */}
+        <View style={[styles.suggestionCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.suggestionTitle, { color: colors.text }]}>AI Suggestions</Text>
+          {loadingSuggestion ? (
+            <Text style={{ color: colors.textSecondary }}>Loading suggestion...</Text>
+          ) : (
+            <Text style={[styles.suggestionText, { color: colors.textSecondary }]}>{suggestion}</Text>
+          )}
+        </View>
+
         <NativeAdCard />
         {/* Category breakdown */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Spending by Category</Text>
@@ -369,7 +428,22 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     fontFamily: 'Inter-Bold',
-    fontSize: 20,
+    fontSize: 16,
+  },
+  suggestionCard: {
+    padding: 16,
+    borderRadius: 12,
+    marginHorizontal: 4,
+    marginBottom: 20,
+  },
+  suggestionTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  suggestionText: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
   },
   sectionTitle: {
     fontFamily: 'Inter-Bold',
