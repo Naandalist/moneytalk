@@ -18,21 +18,21 @@ export const NativeAdCard: React.FC<NativeAdComponentProps> = ({ adUnitId, style
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: colors.card }, style]}>
-            <NativeAdView nativeAd={nativeAd} style={styles.adView}>
-                <View style={styles.content}>
+        <NativeAdView
+            nativeAd={nativeAd}
+            style={[styles.container, { backgroundColor: colors.card }, style]}>
+            <View style={styles.content}>
+                <View style={styles.mediaContainer}>
                     <NativeMediaView style={[styles.media, { backgroundColor: colors.cardAlt }]} />
-                    <View style={styles.textContainer}>
-                        <NativeAsset assetType={NativeAssetType.HEADLINE}>
-                            <Text style={[styles.headline, { color: colors.text }]}>
-                                {nativeAd.headline}
-                            </Text>
-                        </NativeAsset>
-                        <Text style={[styles.sponsored, { color: colors.textSecondary }]}>Sponsored</Text>
-                    </View>
                 </View>
-            </NativeAdView>
-        </View>
+                <View style={styles.textContainer}>
+                    <NativeAsset assetType={NativeAssetType.HEADLINE}>
+                        <Text style={[styles.headline, { color: colors.text }]} numberOfLines={1} />
+                    </NativeAsset>
+                    <Text style={[styles.sponsored, { color: colors.textSecondary }]}>Sponsored</Text>
+                </View>
+            </View>
+        </NativeAdView>
     );
 };
 
@@ -44,14 +44,23 @@ const styles = StyleSheet.create({
     },
     adView: {
         padding: 16,
+        overflow: 'hidden', // Ensure content doesn't overflow
     },
     content: {
         flexDirection: 'row',
         alignItems: 'center',
+        overflow: 'hidden', // Ensure content doesn't overflow
+    },
+    mediaContainer: {
+        width: 120,
+        height: 120,
+        borderRadius: 8,
+        overflow: 'hidden', // Ensure media doesn't overflow
     },
     textContainer: {
         flex: 1,
         marginLeft: 12,
+        overflow: 'hidden', // Ensure text doesn't overflow
     },
     headline: {
         fontFamily: 'Inter-Medium',
@@ -63,8 +72,7 @@ const styles = StyleSheet.create({
         fontSize: 12,
     },
     media: {
-        width: 80,
-        height: 60,
-        borderRadius: 8,
+        width: 120,
+        height: 120,
     },
 });

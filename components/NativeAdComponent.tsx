@@ -19,19 +19,23 @@ export const NativeAdComponent: React.FC<NativeAdComponentProps> = ({ adUnitId, 
 
     return (
         <View style={[styles.container, style]}>
-            <NativeAdView nativeAd={nativeAd}>
+            <NativeAdView nativeAd={nativeAd} style={styles.adView}>
                 {/* {nativeAd.icon && (
           <NativeAsset assetType={NativeAssetType.ICON}>
             <Image source={{ uri: nativeAd.icon.url }} style={styles.icon} />
           </NativeAsset>
         )} */}
-                <NativeAsset assetType={NativeAssetType.HEADLINE}>
-                    <Text style={[styles.headline, { color: colors.text }]}>
-                        {nativeAd.headline}
-                    </Text>
-                </NativeAsset>
-                <Text style={[styles.sponsored, { color: colors.textSecondary }]}>Sponsored</Text>
-                <NativeMediaView style={styles.media} />
+                <View style={styles.contentContainer}>
+                    <NativeAsset assetType={NativeAssetType.HEADLINE}>
+                        <Text style={[styles.headline, { color: colors.text }]} numberOfLines={2}>
+                            {nativeAd.headline}
+                        </Text>
+                    </NativeAsset>
+                    <Text style={[styles.sponsored, { color: colors.textSecondary }]}>Sponsored</Text>
+                    <View style={styles.mediaContainer}>
+                        <NativeMediaView style={styles.media} />
+                    </View>
+                </View>
             </NativeAdView>
         </View>
     );
@@ -42,6 +46,15 @@ const styles = StyleSheet.create({
         marginTop: 20,
         paddingHorizontal: 20,
         paddingVertical: 16,
+        overflow: 'hidden',
+    },
+    adView: {
+        width: '100%',
+        overflow: 'hidden',
+    },
+    contentContainer: {
+        width: '100%',
+        overflow: 'hidden',
     },
     icon: {
         width: 24,
@@ -55,8 +68,14 @@ const styles = StyleSheet.create({
         fontSize: 12,
         marginTop: 4,
     },
-    media: {
-        height: 100,
+    mediaContainer: {
+        width: 120,
+        height: 120,
         marginTop: 8,
+        overflow: 'hidden',
+    },
+    media: {
+        width: 120,
+        height: 120,
     },
 });

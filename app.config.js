@@ -15,6 +15,22 @@ export default ({ config }) => ({
   newArchEnabled: true,
   ios: {
     supportsTablet: true,
+    bundleIdentifier: 'com.luminawsoftware.moneytalk',
+    infoPlist: {
+      NSMicrophoneUsageDescription:
+        'This app uses the microphone to record your voice for transaction input.',
+      NSPhotoLibraryUsageDescription:
+        'This app needs access to your photo library to allow you to select images for transactions.',
+      NSDocumentPickerUsageDescription:
+        'This app needs access to documents to allow you to select files.',
+      NSFileProviderDomainUsageDescription:
+        'This app needs access to files to save and share transaction data.',
+      NSUserTrackingUsageDescription:
+        'This app uses tracking data to deliver personalized ads to you.',
+      NSHapticsUsageDescription:
+        'This app uses haptic feedback to enhance your experience when recording transactions.',
+      UIBackgroundModes: ['audio'],
+    },
   },
   android: {
     package: 'com.luminawsoftware.moneytalk',
@@ -60,6 +76,24 @@ export default ({ config }) => ({
       {
         userTrackingPermission:
           'This identifier will be used to deliver personalized ads to you.',
+      },
+    ],
+    [
+      'expo-document-picker',
+      {
+        photosPermission:
+          'Allow moneytalk to access photos to input transaction',
+        microphonePermission:
+          'Allow moneytalk to access microphone to record transaction',
+      },
+    ],
+    [
+      'expo-av',
+      {
+        photosPermission:
+          'Allow moneytalk to access photos to input transaction',
+        microphonePermission:
+          'Allow moneytalk to access microphone to record transaction',
       },
     ],
   ],
