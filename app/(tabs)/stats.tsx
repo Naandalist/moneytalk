@@ -287,13 +287,14 @@ export default function StatsScreen() {
         </View>
 
         {/* AI Suggestion Card */}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>MoneyTalk AI Suggestion</Text>
         <View style={[styles.suggestionCard, { backgroundColor: colors.card }]}>
-          <Text style={[styles.suggestionTitle, { color: colors.text }]}>AI Suggestions</Text>
           {loadingSuggestion ? (
             <Text style={{ color: colors.textSecondary }}>Loading suggestion...</Text>
           ) : (
             <Text style={[styles.suggestionText, { color: colors.textSecondary }]}>{suggestion}</Text>
           )}
+          <Text style={[styles.suggestionSubTitle, { color: colors.textSecondary }]}>-- Refreshed every 24 hours</Text>
         </View>
 
         <NativeAdCard />
@@ -439,7 +440,12 @@ const styles = StyleSheet.create({
   suggestionTitle: {
     fontFamily: 'Inter-Bold',
     fontSize: 16,
-    marginBottom: 8,
+    marginBottom: 4,
+  },
+  suggestionSubTitle: {
+    fontFamily: 'Inter-regular',
+    fontSize: 10,
+    marginTop: 8,
   },
   suggestionText: {
     fontFamily: 'Inter-Regular',
