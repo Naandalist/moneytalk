@@ -17,13 +17,13 @@ export default function TabLayout() {
           styles.tabBar,
           {
             backgroundColor: colors.card,
-            height: 60 + insets.bottom,
+            height: 40 + insets.bottom,
             paddingBottom: 8 + insets.bottom
           }
         ],
         tabBarLabelStyle: styles.tabBarLabel,
         headerShown: false,
-        tabBarShowLabel: true,
+        tabBarShowLabel: false,
       }}
     >
       <Tabs.Screen
@@ -57,7 +57,7 @@ export default function TabLayout() {
           ),
           tabBarIconStyle: {
             position: 'absolute',
-            top: -20,
+            top: -10,
           },
         }}
       />

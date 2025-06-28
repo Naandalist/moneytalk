@@ -208,7 +208,8 @@ export default function RecordScreen() {
                   <StopCircle size={40} color={colors.white} />
                 ) : (
                   <View style={styles.recordIconContainer}>
-                    <Text style={styles.recordText}>Tap to record</Text>
+                    <Text style={styles.recordText}>Tap to</Text>
+                    <Text style={styles.recordText}>Record</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -266,8 +267,8 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   recordButton: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
     borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
