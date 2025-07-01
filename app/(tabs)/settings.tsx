@@ -8,6 +8,7 @@ import { useNotification } from '@/hooks/useNotification';
 import CustomNotification from '@/components/CustomNotification';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { convertFromUTC, getUserTimezone } from '@/utils/timezoneUtils';
 
 import { NativeAdCard } from '@/components/NativeAdCard';
 
@@ -65,7 +66,15 @@ export default function SettingsScreen() {
       // Convert transactions to CSV format
       const csvHeader = 'ID,Date,Type,Category,Amount,Description\n';
       const csvData = transactions.map(transaction => {
-        const date = new Date(transaction.date).toLocaleDateString();
+        // Convert from UTC to user's timezone for display
+        const localDate = convertFromUTC(transaction.date);
+        const userTimezone = getUserTimezone();
+        const date = localDate.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          timeZone: userTimezone,
+        });
         const description = (transaction.description || '').replace(/"/g, '""'); // Escape quotes
         return `${transaction.id},"${date}","${transaction.type}","${transaction.category}",${transaction.amount},"${description}"`;
       }).join('\n');

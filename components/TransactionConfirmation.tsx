@@ -8,6 +8,7 @@ import { Check, X, Save, Calendar, Clock } from 'lucide-react-native';
 import { categoryList, getCategoryIcon } from '@/utils/categories';
 import { formatCurrency } from 'react-native-format-currency';
 import { NativeAdComponent } from './NativeAdComponent';
+import { convertToUTC, convertFromUTC, getUserTimezone } from '@/utils/timezoneUtils';
 
 type TransactionConfirmationProps = {
   transaction: Transaction;
@@ -55,7 +56,7 @@ export default function TransactionConfirmation({
         amount: numericValue,
         code: selectedCurrency.code
       });
-      setDisplayValue(valueFormattedWithoutSymbol);
+      setDisplayValue(String(valueFormattedWithoutSymbol));
     } else {
       setDisplayValue(text);
     }
@@ -107,27 +108,27 @@ export default function TransactionConfirmation({
       setShowDatePicker(false);
       if (event.type === 'set' && selectedDate) {
         // Preserve existing time when changing date
-        const currentDateTime = editedTransaction.date ? new Date(editedTransaction.date) : new Date();
+        const currentDateTime = editedTransaction.date ? convertFromUTC(editedTransaction.date) : new Date();
         const newDateTime = new Date(selectedDate);
         newDateTime.setHours(currentDateTime.getHours());
         newDateTime.setMinutes(currentDateTime.getMinutes());
 
         setEditedTransaction({
           ...editedTransaction,
-          date: newDateTime.toISOString(),
+          date: convertToUTC(newDateTime.toISOString().slice(0, 19)), // Convert to UTC for storage
         });
       }
     } else {
       // iOS handling
       if (selectedDate) {
-        const currentDateTime = editedTransaction.date ? new Date(editedTransaction.date) : new Date();
+        const currentDateTime = editedTransaction.date ? convertFromUTC(editedTransaction.date) : new Date();
         const newDateTime = new Date(selectedDate);
         newDateTime.setHours(currentDateTime.getHours());
         newDateTime.setMinutes(currentDateTime.getMinutes());
 
         setEditedTransaction({
           ...editedTransaction,
-          date: newDateTime.toISOString(),
+          date: convertToUTC(newDateTime.toISOString().slice(0, 19)), // Convert to UTC for storage
         });
       }
     }
@@ -138,27 +139,27 @@ export default function TransactionConfirmation({
       setShowTimePicker(false);
       if (event.type === 'set' && selectedTime) {
         // Preserve existing date when changing time
-        const currentDateTime = editedTransaction.date ? new Date(editedTransaction.date) : new Date();
+        const currentDateTime = editedTransaction.date ? convertFromUTC(editedTransaction.date) : new Date();
         const newDateTime = new Date(currentDateTime);
         newDateTime.setHours(selectedTime.getHours());
         newDateTime.setMinutes(selectedTime.getMinutes());
 
         setEditedTransaction({
           ...editedTransaction,
-          date: newDateTime.toISOString(),
+          date: convertToUTC(newDateTime.toISOString().slice(0, 19)), // Convert to UTC for storage
         });
       }
     } else {
       // iOS handling
       if (selectedTime) {
-        const currentDateTime = editedTransaction.date ? new Date(editedTransaction.date) : new Date();
+        const currentDateTime = editedTransaction.date ? convertFromUTC(editedTransaction.date) : new Date();
         const newDateTime = new Date(currentDateTime);
         newDateTime.setHours(selectedTime.getHours());
         newDateTime.setMinutes(selectedTime.getMinutes());
 
         setEditedTransaction({
           ...editedTransaction,
-          date: newDateTime.toISOString(),
+          date: convertToUTC(newDateTime.toISOString().slice(0, 19)), // Convert to UTC for storage
         });
       }
     }
@@ -174,21 +175,27 @@ export default function TransactionConfirmation({
 
   const formatDateForDisplay = (dateString: string) => {
     if (!dateString) return 'Select Date';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    // Convert from UTC to user's timezone for display
+    const localDate = convertFromUTC(dateString);
+    const userTimezone = getUserTimezone();
+    return localDate.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+      timeZone: userTimezone,
     });
   };
 
   const formatTimeForDisplay = (dateString: string) => {
     if (!dateString) return 'Select Time';
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', {
+    // Convert from UTC to user's timezone for display
+    const localDate = convertFromUTC(dateString);
+    const userTimezone = getUserTimezone();
+    return localDate.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
+      timeZone: userTimezone,
     });
   };
 
@@ -373,7 +380,7 @@ export default function TransactionConfirmation({
       {/* Date Picker Modal */}
       {showDatePicker && (
         <DateTimePicker
-          value={editedTransaction.date ? new Date(editedTransaction.date) : new Date()}
+          value={editedTransaction.date ? convertFromUTC(editedTransaction.date) : new Date()}
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={onDateChange}
@@ -384,7 +391,7 @@ export default function TransactionConfirmation({
       {/* Time Picker Modal */}
       {showTimePicker && (
         <DateTimePicker
-          value={editedTransaction.date ? new Date(editedTransaction.date) : new Date()}
+          value={editedTransaction.date ? convertFromUTC(editedTransaction.date) : new Date()}
           mode="time"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={onTimeChange}

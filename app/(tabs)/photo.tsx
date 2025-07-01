@@ -65,7 +65,7 @@ export default function PhotoCaptureScreen() {
                 category: parsedResult.category || 'other',
                 type: parsedResult.type || 'expense',
                 description: parsedResult.description || 'Receipt transaction',
-                date: new Date().toISOString(),
+                date: new Date().toISOString(), // Already in UTC, correct for database storage
             };
 
             setParsedTransaction(transaction);

@@ -14,6 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { NativeAdCard } from '@/components/NativeAdCard';
 import { generateSuggestion } from '@/utils/suggestionGenerator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { convertFromUTC, getUserTimezone } from '@/utils/timezoneUtils';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -127,7 +128,8 @@ export default function StatsScreen() {
           // Calculate total expenses for this day
           const dayExpenses = periodTransactions
             .filter(t => {
-              const transactionDate = new Date(t.date);
+              // Convert UTC date to user's timezone for comparison
+              const transactionDate = convertFromUTC(t.date);
               return transactionDate.toDateString() === date.toDateString() && t.type === 'expense';
             })
             .reduce((sum, t) => sum + Math.abs(t.amount), 0);
@@ -149,7 +151,8 @@ export default function StatsScreen() {
 
           const weekExpenses = periodTransactions
             .filter(t => {
-              const transactionDate = new Date(t.date);
+              // Convert UTC date to user's timezone for comparison
+              const transactionDate = convertFromUTC(t.date);
               return transactionDate >= weekStart && transactionDate <= weekEnd && t.type === 'expense';
             })
             .reduce((sum, t) => sum + Math.abs(t.amount), 0);
@@ -167,7 +170,8 @@ export default function StatsScreen() {
 
           const monthExpenses = periodTransactions
             .filter(t => {
-              const transactionDate = new Date(t.date);
+              // Convert UTC date to user's timezone for comparison
+              const transactionDate = convertFromUTC(t.date);
               return transactionDate.getMonth() === date.getMonth() &&
                 transactionDate.getFullYear() === date.getFullYear() &&
                 t.type === 'expense';

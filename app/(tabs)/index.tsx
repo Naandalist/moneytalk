@@ -21,7 +21,7 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const { selectedCurrency, setSelectedCurrency, currencies, isOnboardingComplete, completeOnboarding } = useCurrency();
   const insets = useSafeAreaInsets();
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [balance, setBalance] = useState({ income: 0, expenses: 0 });
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isFabExpanded, setIsFabExpanded] = useState(false);
@@ -34,7 +34,6 @@ export default function HomeScreen() {
 
   const loadData = useCallback(async () => {
     const recentTransactions = await getRecentTransactions(6);
-    // @ts-expect-error
     setTransactions(recentTransactions);
 
     const balanceData = await getBalance();
@@ -210,7 +209,6 @@ export default function HomeScreen() {
             <View key={`view-${transaction.id.toString()}`}>
               {((index + 1) % 3 === 0 || (transactions.length < 3 && index === 0)) && <NativeAdCard key={`ads-${transaction.id.toString()}`} />}
               <TransactionCard
-                // @ts-expect-error
                 key={transaction.id.toString()}
                 transaction={transaction}
                 onPress={() => handleTransactionLongPress(transaction)}

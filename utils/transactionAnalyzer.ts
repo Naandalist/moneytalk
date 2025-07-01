@@ -1,5 +1,6 @@
 import { Transaction } from '../types/transaction';
 import { categoryList } from './categories';
+import { convertToUTC, getUserTimezone, getCurrentDateInTimezone } from './timezoneUtils';
 import Constants from 'expo-constants';
 
 // OpenAI API integration for transaction analysis
@@ -22,7 +23,14 @@ export async function analyzeTransaction(transcription: string): Promise<Transac
     transaction.type = analysis.type;
     transaction.category = analysis.category;
     transaction.amount = analysis.amount;
-    transaction.date = analysis.date;
+    
+    // Properly handle timezone conversion for the date
+    if (analysis.date) {
+      // Convert the date from user's timezone to UTC for database storage
+      transaction.date = convertToUTC(analysis.date);
+    } else {
+      transaction.date = new Date().toISOString();
+    }
     
     // Make amount negative for expenses
     if (transaction.type === 'expense' && transaction.amount > 0) {
@@ -62,38 +70,41 @@ async function analyzeWithOpenAI(transcription: string): Promise<{
 
   const availableCategories = categoryList.join(', ');
 
-  const currentDatetime = new Date().toISOString(); // Get current datetime in ISO 8601 format for OpenAI to use as reference in conversation
+  const timezone = getUserTimezone();
+  const currentDatetime = getCurrentDateInTimezone(timezone); // Get current datetime in user's timezone
+  const currentDatetimeUTC = new Date().toISOString(); // UTC reference for OpenAI
 
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; // Get the user's timezone
-
-  console.log({timezone, currentDatetime})
+  console.log({timezone, currentDatetime, currentDatetimeUTC})
   
-  const prompt = `userTimezone: ${timezone}, currentDatetime: ${currentDatetime}. Analyze this financial transaction description and extract:
-  1. Transaction type: "income" or "expense"
-  2. Category: Choose one from this list → ${availableCategories}
-  3. Amount: Numeric only (no currency symbols or words)
-  4. Time Reference: Detect and convert any natural language time references (in English or Indonesian, such as “yesterday”, “kemarin”, “3 days ago”, “3 hari yang lalu”) to ISO 8601 datetime format.
+  const prompt = `User timezone: ${timezone}
+Current datetime in user timezone: ${currentDatetime}
+Current UTC datetime: ${currentDatetimeUTC}
 
-  Use this currentDatetime as reference. return date in correct userTimezone.
+Analyze this financial transaction description and extract:
+1. Transaction type: "income" or "expense"
+2. Category: Choose one from this list → ${availableCategories}
+3. Amount: Numeric only (no currency symbols or words)
+4. Time Reference: Detect and convert any natural language time references (in English or Indonesian) to datetime format in the user's timezone.
 
-  Correct examples of time parsing:
-    - “yesterday” / “kemarin” → currentDatetime - 1 day
-    - “2 days ago” / “kemarin lusa” → currentDatetime - 2 day
-    - “3 days ago” / “3 hari yang lalu” → currentDatetime - 3 day
-    - “1 week ago” / “1 minggu yang lalu” → currentDatetime - 7 day
-  
-  If no time reference is found, use today's datetime, get from your system date time.
+Time parsing examples (all relative to current datetime in user timezone):
+- "yesterday" / "kemarin" → current date - 1 day
+- "2 days ago" / "2 hari yang lalu" → current date - 2 days
+- "last week" / "minggu lalu" → current date - 7 days
+- "this morning" / "pagi ini" → today at 09:00
+- "last night" / "tadi malam" → yesterday at 21:00
 
-  Transaction description: "${transcription}"
+If no time reference is found, use the current datetime in user timezone.
 
-  Respond ONLY in this JSON format:
-  {
-    "type": "income" or "expense",
-    "category": "category from the list",
-    "amount": number,
-    "date": "YYYY-MM-DDTHH:mm:ss",
-    "timezone": "userTimezone",
-  }`;
+Transaction description: "${transcription}"
+
+Respond ONLY in this JSON format:
+{
+  "type": "income" or "expense",
+  "category": "category from the list",
+  "amount": number,
+  "date": "YYYY-MM-DDTHH:mm:ss",
+  "timezone": "${timezone}"
+}`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',

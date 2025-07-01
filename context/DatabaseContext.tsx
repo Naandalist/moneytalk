@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as SQLite from 'expo-sqlite';
 import { Transaction } from '@/types/transaction';
+import { getCurrentDateInTimezone, getUserTimezone } from '@/utils/timezoneUtils';
 
 type DatabaseContextType = {
   isReady: boolean;
@@ -114,18 +115,20 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const getTransactionsByPeriod = async (period: string): Promise<Transaction[]> => {
     try {
       let dateFilter = '';
-      const now = new Date();
+      // Use current time in user's timezone, then convert to UTC for database comparison
+      const now = new Date(getCurrentDateInTimezone());
 
       if (period === 'week') {
-        const weekAgo = new Date();
+        const weekAgo = new Date(now);
         weekAgo.setDate(now.getDate() - 7);
+        // Convert to UTC for database comparison (dates in DB are stored in UTC)
         dateFilter = `WHERE date >= '${weekAgo.toISOString()}'`;
       } else if (period === 'month') {
-        const monthAgo = new Date();
+        const monthAgo = new Date(now);
         monthAgo.setMonth(now.getMonth() - 1);
         dateFilter = `WHERE date >= '${monthAgo.toISOString()}'`;
       } else if (period === 'year') {
-        const yearAgo = new Date();
+        const yearAgo = new Date(now);
         yearAgo.setFullYear(now.getFullYear() - 1);
         dateFilter = `WHERE date >= '${yearAgo.toISOString()}'`;
       }
@@ -143,18 +146,20 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const getTransactionsByCategory = async (period: string): Promise<any[]> => {
     try {
       let dateFilter = '';
-      const now = new Date();
+      // Use current time in user's timezone, then convert to UTC for database comparison
+      const now = new Date(getCurrentDateInTimezone());
 
       if (period === 'week') {
-        const weekAgo = new Date();
+        const weekAgo = new Date(now);
         weekAgo.setDate(now.getDate() - 7);
+        // Convert to UTC for database comparison (dates in DB are stored in UTC)
         dateFilter = `AND date >= '${weekAgo.toISOString()}'`;
       } else if (period === 'month') {
-        const monthAgo = new Date();
+        const monthAgo = new Date(now);
         monthAgo.setMonth(now.getMonth() - 1);
         dateFilter = `AND date >= '${monthAgo.toISOString()}'`;
       } else if (period === 'year') {
-        const yearAgo = new Date();
+        const yearAgo = new Date(now);
         yearAgo.setFullYear(now.getFullYear() - 1);
         dateFilter = `AND date >= '${yearAgo.toISOString()}'`;
       }
