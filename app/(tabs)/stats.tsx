@@ -13,8 +13,8 @@ import { formatCurrency } from '@/utils/formatters';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeAdCard } from '@/components/NativeAdCard';
 import { generateSuggestion } from '@/utils/suggestionGenerator';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { convertFromUTC, getUserTimezone } from '@/utils/timezoneUtils';
+import { Ionicons } from '@expo/vector-icons';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -27,10 +27,9 @@ interface PieChartData {
 }
 
 export default function StatsScreen() {
-  const SUGGESTION_CACHE_KEY = 'ai_suggestion_cache';
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const { getTransactionsByPeriod, getTransactionsByCategory } = useDatabase();
+  const { getTransactionsByPeriod, getTransactionsByCategory, saveAISuggestion, getAISuggestion, clearAISuggestion, getRemainingRefreshes, incrementDailyRefreshCount } = useDatabase();
   const { selectedCurrency } = useCurrency();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -42,10 +41,13 @@ export default function StatsScreen() {
   const [period, setPeriod] = useState('week'); // 'week', 'month', 'year'
   const [suggestion, setSuggestion] = useState('');
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
+  const [remainingRefreshes, setRemainingRefreshes] = useState(3);
+  const [showRefreshInfo, setShowRefreshInfo] = useState(false);
 
   useEffect(() => {
     loadData();
     loadSuggestion();
+    loadRemainingRefreshes();
   }, [period]);
 
   // Add focus effect to reload data when screen comes into focus
@@ -53,38 +55,75 @@ export default function StatsScreen() {
     React.useCallback(() => {
       loadData();
       loadSuggestion();
+      loadRemainingRefreshes();
     }, [period])
   );
 
-  const loadSuggestion = async () => {
+  /**
+   * Load AI suggestion from database cache or generate new one
+   * @param forceRefresh - Force generation of new suggestion
+   */
+  const loadSuggestion = async (forceRefresh: boolean = false) => {
     setLoadingSuggestion(true);
     try {
-      // Check for cached suggestion
-      const cachedData = await AsyncStorage.getItem(SUGGESTION_CACHE_KEY);
-      if (cachedData) {
-        const { suggestion, timestamp } = JSON.parse(cachedData);
-        const isCacheValid = (new Date().getTime() - timestamp) < 24 * 60 * 60 * 1000; // 24 hours
-        if (isCacheValid) {
-          setSuggestion(suggestion);
+      if (!forceRefresh) {
+        // Check for cached suggestion in database
+        const cachedData = await getAISuggestion();
+        if (cachedData) {
+          const { suggestion, timestamp } = cachedData;
+          const isCacheValid = (new Date().getTime() - timestamp) < 24 * 60 * 60 * 1000; // 24 hours
+          if (isCacheValid) {
+            setSuggestion(suggestion);
+            setLoadingSuggestion(false);
+            return;
+          }
         }
-      } else {
-        const thisWeekTransactions = await getTransactionsByPeriod('week');
-        const lastMonthTransactions = await getTransactionsByPeriod('month');
-        const newSuggestion = await generateSuggestion(thisWeekTransactions, lastMonthTransactions);
-
-        // Cache the new suggestion
-        const newCacheData = {
-          suggestion: newSuggestion,
-          timestamp: new Date().getTime(),
-        };
-        await AsyncStorage.setItem(SUGGESTION_CACHE_KEY, JSON.stringify(newCacheData));
-        setSuggestion(newSuggestion);
       }
+
+      // Generate new suggestion
+      const thisWeekTransactions = await getTransactionsByPeriod('week');
+      const lastMonthTransactions = await getTransactionsByPeriod('month');
+      const newSuggestion = await generateSuggestion(thisWeekTransactions, lastMonthTransactions);
+
+      // Save the new suggestion to database
+      await saveAISuggestion(newSuggestion);
+      setSuggestion(newSuggestion);
     } catch (error) {
       console.error('Error loading suggestion:', error);
       setSuggestion('Could not load suggestion.');
     } finally {
       setLoadingSuggestion(false);
+    }
+  };
+
+  /**
+   * Load remaining refreshes count
+   */
+  const loadRemainingRefreshes = async () => {
+    try {
+      const remaining = await getRemainingRefreshes();
+      setRemainingRefreshes(remaining);
+    } catch (error) {
+      console.error('Error loading remaining refreshes:', error);
+    }
+  };
+
+  /**
+   * Manually refresh AI suggestion with daily limit check
+   */
+  const handleRefreshSuggestion = async () => {
+    try {
+      const remaining = await getRemainingRefreshes();
+      if (remaining <= 0) {
+        // Show alert or toast that limit is reached
+        return;
+      }
+
+      await incrementDailyRefreshCount();
+      await loadSuggestion(true);
+      await loadRemainingRefreshes(); // Update remaining count
+    } catch (error) {
+      console.error('Error refreshing suggestion:', error);
     }
   };
 
@@ -291,14 +330,46 @@ export default function StatsScreen() {
         </View>
 
         {/* AI Suggestion Card */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>MoneyTalk AI Suggestion</Text>
+        <View style={styles.suggestionHeader}>
+          <View style={styles.titleContainer}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>MoneyTalk AI Suggestion</Text>
+          </View>
+          <View style={styles.refreshContainer}>
+            <Text style={[styles.refreshCount, { color: colors.textSecondary }]}>
+              {remainingRefreshes}/3
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowRefreshInfo(!showRefreshInfo)}
+              style={styles.infoButton}
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={16}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleRefreshSuggestion}
+              disabled={loadingSuggestion || remainingRefreshes <= 0}
+              style={[styles.refreshButton, { opacity: (loadingSuggestion || remainingRefreshes <= 0) ? 0.3 : 1 }]}
+            >
+              <Ionicons
+                name="refresh"
+                size={20}
+                color={remainingRefreshes <= 0 ? colors.textSecondary : colors.primary}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
         <View style={[styles.suggestionCard, { backgroundColor: colors.card }]}>
           {loadingSuggestion ? (
             <Text style={{ color: colors.textSecondary }}>Loading suggestion...</Text>
           ) : (
             <Text style={[styles.suggestionText, { color: colors.textSecondary }]}>{suggestion}</Text>
           )}
-          <Text style={[styles.suggestionSubTitle, { color: colors.textSecondary }]}>-- Refreshed every 24 hours</Text>
+          {showRefreshInfo && (
+            <Text style={[styles.suggestionSubTitle, { color: colors.textSecondary }]}>-- Refreshed every 24 hours or tap refresh button (3 manual refreshes per day)</Text>
+          )}
         </View>
 
         <NativeAdCard />
@@ -434,6 +505,34 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontFamily: 'Inter-Bold',
     fontSize: 16,
+  },
+  suggestionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  infoButton: {
+    padding: 4,
+  },
+  refreshContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  refreshCount: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 12,
+  },
+  refreshButton: {
+    padding: 8,
+    borderRadius: 20,
   },
   suggestionCard: {
     padding: 16,

@@ -13,6 +13,12 @@ type DatabaseContextType = {
   getBalance: () => Promise<{ income: number, expenses: number }>;
   clearAllTransactions: () => Promise<void>;
   deleteTransaction: (id: number) => Promise<void>;
+  saveAISuggestion: (suggestion: string) => Promise<void>;
+  getAISuggestion: () => Promise<{ suggestion: string; timestamp: number } | null>;
+  clearAISuggestion: () => Promise<void>;
+  getDailyRefreshCount: () => Promise<number>;
+  incrementDailyRefreshCount: () => Promise<void>;
+  getRemainingRefreshes: () => Promise<number>;
 };
 
 const DatabaseContext = createContext<DatabaseContextType>({
@@ -25,6 +31,12 @@ const DatabaseContext = createContext<DatabaseContextType>({
   getBalance: async () => ({ income: 0, expenses: 0 }),
   clearAllTransactions: async () => { },
   deleteTransaction: async () => { },
+  saveAISuggestion: async () => { },
+  getAISuggestion: async () => null,
+  clearAISuggestion: async () => { },
+  getDailyRefreshCount: async () => 0,
+  incrementDailyRefreshCount: async () => { },
+  getRemainingRefreshes: async () => 3,
 });
 
 export const useDatabase = () => useContext(DatabaseContext);
@@ -54,6 +66,26 @@ const initDatabase = async (setIsReady: (ready: boolean) => void) => {
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
+      )
+    `);
+
+    await settingsDb.execAsync(`
+      CREATE TABLE IF NOT EXISTS ai_suggestions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL DEFAULT 'default_user',
+        suggestion TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await settingsDb.execAsync(`
+      CREATE TABLE IF NOT EXISTS daily_refresh_count (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL DEFAULT 'default_user',
+        date TEXT NOT NULL,
+        count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -217,6 +249,115 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  /**
+   * Save AI suggestion to database with timestamp
+   * @param suggestion - The AI generated suggestion text
+   */
+  const saveAISuggestion = async (suggestion: string): Promise<void> => {
+    try {
+      const timestamp = new Date().getTime();
+      await settingsDb.runAsync(
+        `INSERT OR REPLACE INTO ai_suggestions (user_id, suggestion, timestamp, created_at) 
+         VALUES ('default_user', ?, ?, ?)`,
+        [suggestion, timestamp, new Date().toISOString()]
+      );
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  /**
+   * Get the latest AI suggestion from database
+   * @returns Object with suggestion and timestamp, or null if not found
+   */
+  const getAISuggestion = async (): Promise<{ suggestion: string; timestamp: number } | null> => {
+    try {
+      const result = await settingsDb.getFirstAsync(
+        `SELECT suggestion, timestamp FROM ai_suggestions 
+         WHERE user_id = 'default_user' 
+         ORDER BY created_at DESC LIMIT 1`
+      ) as { suggestion: string; timestamp: number } | null;
+      
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  /**
+   * Clear AI suggestion cache from database
+   */
+  const clearAISuggestion = async (): Promise<void> => {
+    try {
+      await settingsDb.runAsync(
+        `DELETE FROM ai_suggestions WHERE user_id = 'default_user'`
+      );
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  /**
+   * Get today's refresh count for the user
+   * @returns Number of refreshes used today
+   */
+  const getDailyRefreshCount = async (): Promise<number> => {
+    try {
+      const today = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD format
+      const result = await settingsDb.getFirstAsync(
+        `SELECT count FROM daily_refresh_count 
+         WHERE user_id = 'default_user' AND date = ?`,
+        [today]
+      ) as { count: number } | null;
+      
+      return result?.count || 0;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  /**
+   * Increment today's refresh count for the user
+   */
+  const incrementDailyRefreshCount = async (): Promise<void> => {
+    try {
+      const today = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD format
+      const currentCount = await getDailyRefreshCount();
+      
+      if (currentCount === 0) {
+        // Insert new record for today
+        await settingsDb.runAsync(
+          `INSERT INTO daily_refresh_count (user_id, date, count, created_at) 
+           VALUES ('default_user', ?, 1, ?)`,
+          [today, new Date().toISOString()]
+        );
+      } else {
+        // Update existing record
+        await settingsDb.runAsync(
+          `UPDATE daily_refresh_count 
+           SET count = count + 1 
+           WHERE user_id = 'default_user' AND date = ?`,
+          [today]
+        );
+      }
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  /**
+   * Get remaining refreshes for today (max 3 per day)
+   * @returns Number of remaining refreshes
+   */
+  const getRemainingRefreshes = async (): Promise<number> => {
+    try {
+      const usedCount = await getDailyRefreshCount();
+      return Math.max(0, 3 - usedCount);
+    } catch (error) {
+      throw error;
+    }
+  };
+
   return (
     <DatabaseContext.Provider value={{
       isReady,
@@ -228,6 +369,12 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       getBalance,
       clearAllTransactions,
       deleteTransaction, // Add this line
+      saveAISuggestion,
+      getAISuggestion,
+      clearAISuggestion,
+      getDailyRefreshCount,
+      incrementDailyRefreshCount,
+      getRemainingRefreshes,
     }}>
       {children}
     </DatabaseContext.Provider>
