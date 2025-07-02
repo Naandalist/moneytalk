@@ -67,12 +67,6 @@ export default ({ config }) => ({
     'expo-web-browser',
     'expo-dev-client',
     [
-      'react-native-iap',
-      {
-        paymentProvider: 'both',
-      },
-    ],
-    [
       'react-native-google-mobile-ads',
       {
         androidAppId: 'ca-app-pub-3827890809706045~1872866125',

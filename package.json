@@ -49,8 +49,6 @@
     "react-native-format-currency": "^0.0.5",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-google-mobile-ads": "^15.4.0",
-    "react-native-iap": "^12.16.4",
-    "react-native-purchases": "^8.11.7",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.11.1",
