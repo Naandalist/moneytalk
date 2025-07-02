@@ -23,7 +23,7 @@ import { NativeAdCard } from '@/components/NativeAdCard';
 
 export default function TransactionDetailScreen() {
     const { colors } = useTheme();
-    const { deleteTransaction } = useDatabase();
+    const { deleteTransaction, updateTransaction } = useDatabase();
     const { selectedCurrency } = useCurrency();
     const { notification, showWarning, showSuccess, showError, hideNotification } = useNotification();
     const insets = useSafeAreaInsets();
@@ -48,6 +48,7 @@ export default function TransactionDetailScreen() {
             try {
                 const parsedTransaction = JSON.parse(params.transactionData as string) as Transaction;
                 setTransaction(parsedTransaction);
+                console.log('Setting edit form with description:', parsedTransaction.description);
                 setEditForm({
                     amount: Math.abs(parsedTransaction.amount).toString(),
                     category: parsedTransaction.category,
@@ -94,11 +95,34 @@ export default function TransactionDetailScreen() {
 
     const handleSave = async () => {
         try {
-            // Here you would implement updateTransaction in DatabaseContext
-            // For now, we'll just show a notification
-            showWarning('Feature Coming Soon', 'Edit functionality will be implemented soon.');
-            setIsEditing(false);
+            if (!transaction || !transaction.id) {
+                throw new Error('Transaction ID is missing');
+            }
+            
+            // Create updated transaction object
+            const updatedTransaction: Transaction = {
+                ...transaction,
+                amount: editForm.type === 'expense' ? -Math.abs(parseFloat(editForm.amount)) : Math.abs(parseFloat(editForm.amount)),
+                category: editForm.category,
+                type: editForm.type,
+                description: editForm.description, // This is the edited description from the form
+                date: editForm.date
+            };
+            
+            // Log the transaction before update for debugging
+            console.log('Updating transaction with description:', updatedTransaction.description);
+            
+            const success = await updateTransaction(updatedTransaction);
+            
+            if (success) {
+                showSuccess('Success', 'Transaction updated successfully');
+                setTransaction(updatedTransaction); // Update local state
+                setIsEditing(false);
+            } else {
+                showError('Error', 'Failed to update transaction');
+            }
         } catch (error) {
+            console.error('Error updating transaction:', error);
             showError('Error', 'Failed to update transaction');
         }
     };

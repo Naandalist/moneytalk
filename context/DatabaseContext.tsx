@@ -7,6 +7,7 @@ import { getCurrentDateInTimezone, getUserTimezone } from '@/utils/timezoneUtils
 type DatabaseContextType = {
   isReady: boolean;
   addTransaction: (transaction: Transaction) => Promise<number>;
+  updateTransaction: (transaction: Transaction) => Promise<boolean>;
   getRecentTransactions: (limit: number) => Promise<Transaction[]>;
   getAllTransactions: () => Promise<Transaction[]>;
   getTransactionsByCategory: (period: string) => Promise<any[]>;
@@ -29,6 +30,7 @@ type DatabaseContextType = {
 const DatabaseContext = createContext<DatabaseContextType>({
   isReady: false,
   addTransaction: async () => 0,
+  updateTransaction: async () => false,
   getRecentTransactions: async () => [],
   getAllTransactions: async () => [],
   getTransactionsByCategory: async () => [],
@@ -694,10 +696,54 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  /**
+   * Update an existing transaction in the database
+   * @param transaction - The transaction to update (must include id)
+   * @returns Promise resolving to true if successful, false otherwise
+   */
+  const updateTransaction = async (transaction: Transaction): Promise<boolean> => {
+    try {
+      if (!transaction.id) {
+        throw new Error('Transaction ID is required for update');
+      }
+
+      // Log the transaction description before updating
+      console.log('DatabaseContext - Updating transaction with description:', transaction.description);
+
+      await db.runAsync(
+        `UPDATE transactions 
+         SET amount = ?, category = ?, type = ?, description = ?, date = ? 
+         WHERE id = ?`,
+        [
+          transaction.amount,
+          transaction.category,
+          transaction.type,
+          transaction.description || '',
+          transaction.date || new Date().toISOString(),
+          transaction.id
+        ]
+      );
+
+      // Verify the update by retrieving the transaction
+      const updatedTransaction = await db.getFirstAsync(
+        `SELECT * FROM transactions WHERE id = ?`,
+        [transaction.id]
+      ) as Transaction | null;
+      
+      console.log('DatabaseContext - After update, transaction description:', updatedTransaction?.description);
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating transaction:', error);
+      return false;
+    }
+  };
+
   return (
     <DatabaseContext.Provider value={{
       isReady,
       addTransaction,
+      updateTransaction,
       getRecentTransactions,
       getAllTransactions,
       getTransactionsByCategory,
