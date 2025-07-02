@@ -167,34 +167,68 @@ export default function CustomNotification({ notification, onClose }: CustomNoti
     };
 
     const getBackgroundColor = (type: NotificationType) => {
-        const opacity = isDark ? '30' : '15'; // More opacity in dark mode, less in light mode
-        switch (type) {
-            case 'success':
-                return colors.success + opacity;
-            case 'error':
-                return colors.error + opacity;
-            case 'warning':
-                return colors.warning + opacity;
-            case 'info':
-                return colors.primary + opacity;
-            default:
-                return colors.primary + opacity;
+        // Solid background colors with different values for dark and light modes
+        if (isDark) {
+            // Dark mode - slightly lighter than the main color
+            switch (type) {
+                case 'success':
+                    return '#2D4F31'; // Dark green
+                case 'error':
+                    return '#4D2C2A'; // Dark red
+                case 'warning':
+                    return '#4D432A'; // Dark amber
+                case 'info':
+                    return '#373259'; // Dark purple
+                default:
+                    return '#373259'; // Dark purple
+            }
+        } else {
+            // Light mode - very light tint of the main color
+            switch (type) {
+                case 'success':
+                    return '#E8F5E9'; // Light green
+                case 'error':
+                    return '#FFEBEE'; // Light red
+                case 'warning':
+                    return '#FFF8E1'; // Light amber
+                case 'info':
+                    return '#EDE7F6'; // Light purple
+                default:
+                    return '#EDE7F6'; // Light purple
+            }
         }
     };
 
     const getBorderColor = (type: NotificationType) => {
-        const opacity = isDark ? '60' : '40'; // More opacity in dark mode
-        switch (type) {
-            case 'success':
-                return colors.success + opacity;
-            case 'error':
-                return colors.error + opacity;
-            case 'warning':
-                return colors.warning + opacity;
-            case 'info':
-                return colors.primary + opacity;
-            default:
-                return colors.primary + opacity;
+        // Solid border colors with different values for dark and light modes
+        if (isDark) {
+            // Dark mode - slightly brighter than background for contrast
+            switch (type) {
+                case 'success':
+                    return '#3A6A40'; // Brighter dark green
+                case 'error':
+                    return '#6A3A38'; // Brighter dark red
+                case 'warning':
+                    return '#6A5A38'; // Brighter dark amber
+                case 'info':
+                    return '#4A4377'; // Brighter dark purple
+                default:
+                    return '#4A4377'; // Brighter dark purple
+            }
+        } else {
+            // Light mode - slightly darker than background for contrast
+            switch (type) {
+                case 'success':
+                    return '#C8E6C9'; // Darker light green
+                case 'error':
+                    return '#FFCDD2'; // Darker light red
+                case 'warning':
+                    return '#FFE0B2'; // Darker light amber
+                case 'info':
+                    return '#D1C4E9'; // Darker light purple
+                default:
+                    return '#D1C4E9'; // Darker light purple
+            }
         }
     };
 
