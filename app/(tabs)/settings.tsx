@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, Alert, Modal } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Moon, Sun, Trash2, RefreshCcw, Database, Info } from 'lucide-react-native';
@@ -15,8 +15,18 @@ import { NativeAdCard } from '@/components/NativeAdCard';
 export default function SettingsScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { clearAllTransactions, getAllTransactions } = useDatabase();
+  const { clearAllTransactions, getAllTransactions, getDatabaseInfo, manualBackup, getBackupFiles, restoreBackup } = useDatabase();
   const { notification, showWarning, showInfo, showSuccess, showError, hideNotification } = useNotification();
+  const [isClearing, setIsClearing] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [showBackupList, setShowBackupList] = useState(false);
+  const [backupFiles, setBackupFiles] = useState<{ transactions: string[], settings: string[] }>({ transactions: [], settings: [] });
+  const [selectedTransactionBackup, setSelectedTransactionBackup] = useState<string | undefined>();
+  const [selectedSettingsBackup, setSelectedSettingsBackup] = useState<string | undefined>();
+  const [dbInfo, setDbInfo] = useState<any>(null);
 
   const handleClearData = () => {
     showWarning(
@@ -154,6 +164,122 @@ export default function SettingsScreen() {
     showInfo('Coming Soon', 'This feature will be available in a future update.');
   };
 
+  const handleBackup = async () => {
+    setIsBackingUp(true);
+    try {
+      const success = await manualBackup();
+      if (success) {
+        showSuccess('Backup Complete', 'Backup created successfully!');
+        // Refresh backup list if it's currently shown
+        if (showBackupList) {
+          await loadBackupFiles();
+        }
+      } else {
+        showError('Backup Failed', 'Failed to create backup');
+      }
+    } catch (error) {
+      showError('Backup Failed', 'Backup failed: ' + (error as Error).message);
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  const loadBackupFiles = async () => {
+    try {
+      const files = await getBackupFiles();
+      setBackupFiles(files);
+    } catch (error) {
+      showError('Load Failed', 'Failed to load backup files: ' + (error as Error).message);
+    }
+  };
+
+  const handleShowBackupList = async () => {
+    setShowBackupList(true);
+    await loadBackupFiles();
+  };
+
+  const handleRestoreBackup = async () => {
+    if (!selectedTransactionBackup && !selectedSettingsBackup) {
+      showError('Selection Required', 'Please select at least one backup file to restore');
+      return;
+    }
+
+    Alert.alert(
+      'Restore Backup',
+      'This will replace your current data with the selected backup. This action cannot be undone. Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Restore',
+          style: 'destructive',
+          onPress: async () => {
+            setIsRestoring(true);
+            try {
+              const success = await restoreBackup(selectedTransactionBackup, selectedSettingsBackup);
+              if (success) {
+                showSuccess('Restore Complete', 'Backup restored successfully!');
+                setShowBackupList(false);
+                setSelectedTransactionBackup(undefined);
+                setSelectedSettingsBackup(undefined);
+              } else {
+                showError('Restore Failed', 'Failed to restore backup');
+              }
+            } catch (error) {
+              showError('Restore Failed', 'Restore failed: ' + (error as Error).message);
+            } finally {
+              setIsRestoring(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  /**
+   * Formats backup file names to display human-readable dates
+   * Handles filenames like "transactions_backup_2024-01-15T10-30-45-123Z.db"
+   */
+  const formatBackupFileName = (fileName: string) => {
+    // Extract timestamp from filename
+    const match = fileName.match(/_backup_(.+)\.db$/);
+    if (match) {
+      let timestamp = match[1];
+      
+      // Convert filename timestamp format to ISO format
+      // Replace hyphens in time part only (after T), keep date hyphens
+      const parts = timestamp.split('T');
+      if (parts.length === 2) {
+        const datePart = parts[0]; // Keep date format: 2024-01-15
+        const timePart = parts[1].replace(/-/g, ':').replace(/Z$/, ''); // Convert time: 10:30:45:123 -> 10:30:45.123
+        
+        // Handle milliseconds format
+        const timeWithMs = timePart.replace(/:([0-9]{3})$/, '.$1');
+        timestamp = `${datePart}T${timeWithMs}Z`;
+      }
+      
+      try {
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) {
+          return fileName; // Return original if date is invalid
+        }
+        
+        // Format for Indonesia timezone (GMT+7)
+        return date.toLocaleString('en-US', {
+          timeZone: 'Asia/Jakarta',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      } catch {
+        return fileName;
+      }
+    }
+    return fileName;
+  };
+
   const handleAbout = () => {
     showInfo('About', 'MoneyTalk v1.0.10\nA voice-powered expense tracker.\n\nCreated by Randhi Putra\nhttps://www.linkedin.com/in/randhipp/', 5000);
   };
@@ -192,30 +318,62 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={[styles.settingRow, { backgroundColor: colors.card }]}
             onPress={handleExportData}
+            disabled={isExporting}
           >
             <View style={styles.settingLabelContainer}>
               <Database size={20} color={colors.primary} style={styles.settingIcon} />
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Export Data</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>
+                {isExporting ? 'Exporting...' : 'Export Data'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.settingRow, { backgroundColor: colors.card }]}
+            onPress={handleBackup}
+            disabled={isBackingUp}
+          >
+            <View style={styles.settingLabelContainer}>
+              <Database size={20} color={colors.primary} style={styles.settingIcon} />
+              <Text style={[styles.settingLabel, { color: colors.text }]}>
+                {isBackingUp ? 'Creating Backup...' : 'Create Backup'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.settingRow, { backgroundColor: colors.card }]}
+            onPress={handleShowBackupList}
+          >
+            <View style={styles.settingLabelContainer}>
+              <RefreshCcw size={20} color={colors.primary} style={styles.settingIcon} />
+              <Text style={[styles.settingLabel, { color: colors.text }]}>Restore Backup</Text>
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.settingRow, { backgroundColor: colors.card }]}
             onPress={handleSyncData}
+            disabled={isSyncing}
           >
             <View style={styles.settingLabelContainer}>
               <RefreshCcw size={20} color={colors.primary} style={styles.settingIcon} />
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Sync with Cloud</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>
+                {isSyncing ? 'Syncing...' : 'Sync with Cloud'}
+              </Text>
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.settingRow, { backgroundColor: colors.card }]}
             onPress={handleClearData}
+            disabled={isClearing}
           >
             <View style={styles.settingLabelContainer}>
               <Trash2 size={20} color={colors.error} style={styles.settingIcon} />
-              <Text style={[styles.settingLabel, { color: colors.error }]}>Clear All Data</Text>
+              <Text style={[styles.settingLabel, { color: colors.error }]}>
+                {isClearing ? 'Clearing...' : 'Clear All Data'}
+              </Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -234,6 +392,116 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Backup Restore Modal */}
+      <Modal
+        visible={showBackupList}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowBackupList(false)}
+      >
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Restore Backup</Text>
+            <TouchableOpacity
+              onPress={() => setShowBackupList(false)}
+              style={styles.closeButton}
+            >
+              <Text style={[styles.closeButtonText, { color: colors.primary }]}>Close</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {/* Transaction Backups */}
+            <View style={styles.backupSection}>
+              <Text style={[styles.backupSectionTitle, { color: colors.text }]}>Transaction Backups</Text>
+              {backupFiles.transactions.length === 0 ? (
+                <Text style={[styles.noBackupsText, { color: colors.textSecondary }]}>
+                  No transaction backups found
+                </Text>
+              ) : (
+                backupFiles.transactions.map((file, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.backupItem,
+                      { backgroundColor: colors.card },
+                      selectedTransactionBackup === file && { backgroundColor: colors.primary + '20' }
+                    ]}
+                    onPress={() => setSelectedTransactionBackup(
+                      selectedTransactionBackup === file ? undefined : file
+                    )}
+                  >
+                    <View style={styles.backupItemContent}>
+                      <Text style={[styles.backupFileName, { color: colors.text }]}>
+                        {formatBackupFileName(file)}
+                      </Text>
+                      <Text style={[styles.backupFileSize, { color: colors.textSecondary }]}>
+                        Transactions
+                      </Text>
+                    </View>
+                    {selectedTransactionBackup === file && (
+                      <View style={[styles.selectedIndicator, { backgroundColor: colors.primary }]} />
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+
+            {/* Settings Backups */}
+            <View style={styles.backupSection}>
+              <Text style={[styles.backupSectionTitle, { color: colors.text }]}>Settings Backups</Text>
+              {backupFiles.settings.length === 0 ? (
+                <Text style={[styles.noBackupsText, { color: colors.textSecondary }]}>
+                  No settings backups found
+                </Text>
+              ) : (
+                backupFiles.settings.map((file, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.backupItem,
+                      { backgroundColor: colors.card },
+                      selectedSettingsBackup === file && { backgroundColor: colors.primary + '20' }
+                    ]}
+                    onPress={() => setSelectedSettingsBackup(
+                      selectedSettingsBackup === file ? undefined : file
+                    )}
+                  >
+                    <View style={styles.backupItemContent}>
+                      <Text style={[styles.backupFileName, { color: colors.text }]}>
+                        {formatBackupFileName(file)}
+                      </Text>
+                      <Text style={[styles.backupFileSize, { color: colors.textSecondary }]}>
+                        Settings & AI Data
+                      </Text>
+                    </View>
+                    {selectedSettingsBackup === file && (
+                      <View style={[styles.selectedIndicator, { backgroundColor: colors.primary }]} />
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          </ScrollView>
+
+          <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
+            <TouchableOpacity
+              style={[
+                styles.restoreButton,
+                { backgroundColor: colors.primary },
+                (!selectedTransactionBackup && !selectedSettingsBackup) && { opacity: 0.5 }
+              ]}
+              onPress={handleRestoreBackup}
+              disabled={isRestoring || (!selectedTransactionBackup && !selectedSettingsBackup)}
+            >
+              <Text style={[styles.restoreButtonText, { color: colors.white }]}>
+                {isRestoring ? 'Restoring...' : 'Restore Selected'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -279,6 +547,90 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     fontFamily: 'Inter-Medium',
+    fontSize: 16,
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 20,
+  },
+  closeButton: {
+    padding: 8,
+  },
+  closeButtonText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 16,
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  backupSection: {
+    marginVertical: 16,
+  },
+  backupSectionTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 18,
+    marginBottom: 12,
+  },
+  noBackupsText: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: 20,
+    fontStyle: 'italic',
+  },
+  backupItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  backupItemContent: {
+    flex: 1,
+  },
+  backupFileName: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  backupFileSize: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 12,
+  },
+  selectedIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginLeft: 12,
+  },
+  modalFooter: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+  },
+  restoreButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  restoreButtonText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 16,
   },
 });

@@ -22,6 +22,8 @@ type DatabaseContextType = {
   getRemainingRefreshes: () => Promise<number>;
   getDatabaseInfo: () => Promise<any>;
   manualBackup: () => Promise<boolean>;
+  getBackupFiles: () => Promise<{ transactions: string[], settings: string[] }>;
+  restoreBackup: (transactionBackupFile?: string, settingsBackupFile?: string) => Promise<boolean>;
 };
 
 const DatabaseContext = createContext<DatabaseContextType>({
@@ -42,6 +44,8 @@ const DatabaseContext = createContext<DatabaseContextType>({
   getRemainingRefreshes: async () => 3,
   getDatabaseInfo: async () => null,
   manualBackup: async () => false,
+  getBackupFiles: async () => ({ transactions: [], settings: [] }),
+  restoreBackup: async () => false,
 });
 
 export const useDatabase = () => useContext(DatabaseContext);
@@ -605,6 +609,91 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  /**
+   * Get list of available backup files
+   */
+  const getBackupFiles = async (): Promise<{ transactions: string[], settings: string[] }> => {
+    try {
+      const backupDir = FileSystem.documentDirectory + 'backups/';
+      const backupDirInfo = await FileSystem.getInfoAsync(backupDir);
+      
+      if (!backupDirInfo.exists) {
+        return { transactions: [], settings: [] };
+      }
+      
+      const files = await FileSystem.readDirectoryAsync(backupDir);
+      const transactionBackups = files.filter(file => file.startsWith('transactions_backup_') && file.endsWith('.db'));
+      const settingsBackups = files.filter(file => file.startsWith('settings_backup_') && file.endsWith('.db'));
+      
+      return {
+        transactions: transactionBackups.sort().reverse(), // Most recent first
+        settings: settingsBackups.sort().reverse()
+      };
+    } catch (error) {
+      console.error('Error getting backup files:', error);
+      return { transactions: [], settings: [] };
+    }
+  };
+
+  /**
+   * Restore backup from selected backup files
+   */
+  const restoreBackup = async (transactionBackupFile?: string, settingsBackupFile?: string): Promise<boolean> => {
+    try {
+      const backupDir = FileSystem.documentDirectory + 'backups/';
+      
+      // Close current database connections
+      await db.closeAsync();
+      await settingsDb.closeAsync();
+      
+      // Restore transaction database if specified
+      if (transactionBackupFile) {
+        const backupPath = backupDir + transactionBackupFile;
+        const backupInfo = await FileSystem.getInfoAsync(backupPath);
+        
+        if (backupInfo.exists) {
+          await FileSystem.copyAsync({
+            from: backupPath,
+            to: DB_PATH,
+          });
+          console.log('Transactions database restored from:', transactionBackupFile);
+        } else {
+          throw new Error('Transaction backup file not found');
+        }
+      }
+      
+      // Restore settings database if specified
+      if (settingsBackupFile) {
+        const backupPath = backupDir + settingsBackupFile;
+        const backupInfo = await FileSystem.getInfoAsync(backupPath);
+        
+        if (backupInfo.exists) {
+          await FileSystem.copyAsync({
+            from: backupPath,
+            to: SETTINGS_DB_PATH,
+          });
+          console.log('Settings database restored from:', settingsBackupFile);
+        } else {
+          throw new Error('Settings backup file not found');
+        }
+      }
+      
+      // Reinitialize databases
+      await initDatabase(setIsReady);
+      
+      return true;
+    } catch (error) {
+      console.error('Restore backup failed:', error);
+      // Try to reinitialize databases even if restore failed
+      try {
+        await initDatabase(setIsReady);
+      } catch (initError) {
+        console.error('Failed to reinitialize databases after restore failure:', initError);
+      }
+      return false;
+    }
+  };
+
   return (
     <DatabaseContext.Provider value={{
       isReady,
@@ -624,6 +713,8 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       getRemainingRefreshes,
       getDatabaseInfo,
       manualBackup,
+      getBackupFiles,
+      restoreBackup,
     }}>
       {children}
     </DatabaseContext.Provider>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Animated, Alert } from 'react-native';
 import { useDatabase } from '@/context/DatabaseContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
@@ -15,9 +15,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { Transaction } from '@/types/transaction';
 import { NativeAdCard } from '@/components/NativeAdCard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function HomeScreen() {
-  const { getRecentTransactions, getBalance } = useDatabase();
+  const { getRecentTransactions, getBalance, manualBackup } = useDatabase();
   const { colors } = useTheme();
   const { selectedCurrency, setSelectedCurrency, currencies, isOnboardingComplete, completeOnboarding } = useCurrency();
   const insets = useSafeAreaInsets();
@@ -25,7 +26,10 @@ export default function HomeScreen() {
   const [balance, setBalance] = useState({ income: 0, expenses: 0 });
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isFabExpanded, setIsFabExpanded] = useState(false);
-  const { notification, hideNotification, showSuccess } = useNotification();
+  const [showBackupReminder, setShowBackupReminder] = useState(false);
+  const [lastBackupDate, setLastBackupDate] = useState<string | null>(null);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const { notification, hideNotification, showSuccess, showError } = useNotification();
 
   // Animation values
   const fabAnimation = useRef(new Animated.Value(0)).current;
@@ -39,6 +43,107 @@ export default function HomeScreen() {
     const balanceData = await getBalance();
     setBalance(balanceData);
   }, [getRecentTransactions, getBalance]);
+
+  // Check backup reminder after transactions are loaded
+  useEffect(() => {
+    if (transactions.length >= 0) { // Check even when 0 to handle initial state
+      checkBackupReminder();
+    }
+  }, [transactions]);
+
+  /**
+   * Check if backup reminder should be shown
+   * Shows reminder if no backup in last 7 days or never backed up
+   */
+  const checkBackupReminder = async () => {
+    try {
+      const lastBackup = await AsyncStorage.getItem('lastBackupDate');
+      const dismissedUntil = await AsyncStorage.getItem('backupReminderDismissedUntil');
+      
+      setLastBackupDate(lastBackup);
+      
+      // Check if reminder is currently dismissed
+      if (dismissedUntil) {
+        const dismissedUntilTime = new Date(dismissedUntil).getTime();
+        const now = new Date().getTime();
+        if (now < dismissedUntilTime) {
+          setShowBackupReminder(false);
+          return;
+        }
+      }
+      
+      if (!lastBackup) {
+        // Never backed up - show reminder after first transaction
+        if (transactions.length > 0) {
+          setShowBackupReminder(true);
+        }
+        return;
+      }
+      
+      const lastBackupTime = new Date(lastBackup).getTime();
+      const now = new Date().getTime();
+      const daysSinceBackup = (now - lastBackupTime) / (1000 * 60 * 60 * 24);
+      
+      // Show reminder if more than 7 days since last backup
+      setShowBackupReminder(daysSinceBackup > 7);
+    } catch (error) {
+      console.error('Error checking backup reminder:', error);
+      // Only show reminder on error if user has transactions
+      setShowBackupReminder(transactions.length > 0);
+    }
+  };
+
+  /**
+   * Handle manual backup operation
+   */
+  const handleManualBackup = async () => {
+    try {
+      setIsBackingUp(true);
+      const success = await manualBackup();
+      
+      if (success) {
+        const now = new Date().toISOString();
+        await AsyncStorage.setItem('lastBackupDate', now);
+        setLastBackupDate(now);
+        setShowBackupReminder(false);
+        
+        showSuccess(
+          'Backup Completed!',
+          'Your data has been successfully backed up to device storage.',
+          3000
+        );
+      } else {
+        showError(
+          'Backup Failed',
+          'Unable to create backup. Please try again later.',
+          3000
+        );
+      }
+    } catch (error) {
+      console.error('Backup error:', error);
+      showError(
+        'Backup Error',
+        'An error occurred during backup. Please try again.',
+        3000
+      );
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  /**
+   * Dismiss backup reminder for 24 hours
+   */
+  const dismissBackupReminder = async () => {
+    try {
+      const dismissUntil = new Date();
+      dismissUntil.setHours(dismissUntil.getHours() + 24);
+      await AsyncStorage.setItem('backupReminderDismissedUntil', dismissUntil.toISOString());
+      setShowBackupReminder(false);
+    } catch (error) {
+      console.error('Error dismissing backup reminder:', error);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -196,6 +301,44 @@ export default function HomeScreen() {
           income={formatCurrency(balance.income, selectedCurrency.code)}
           expenses={formatCurrency(balance.expenses, selectedCurrency.code)}
         />
+
+        {/* Backup Reminder Card */}
+        {showBackupReminder && (
+          <View style={[styles.backupReminderCard, { backgroundColor: colors.cardAlt, borderColor: colors.primary }]}>
+            <View style={styles.backupReminderHeader}>
+              <Text style={[styles.backupReminderIcon, { color: colors.primary }]}>🛡️</Text>
+              <View style={styles.backupReminderContent}>
+                <Text style={[styles.backupReminderTitle, { color: colors.text }]}>Backup Reminder</Text>
+                <Text style={[styles.backupReminderSubtitle, { color: colors.textSecondary }]}>
+                  {lastBackupDate 
+                    ? `Last backup: ${new Date(lastBackupDate).toLocaleDateString()}`
+                    : 'No backup found. Protect your data!'}
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.backupReminderDescription, { color: colors.textSecondary }]}>
+              Regular backups protect your financial data from device issues or app updates.
+            </Text>
+            <View style={styles.backupReminderActions}>
+              <TouchableOpacity
+                style={[styles.backupButton, { backgroundColor: colors.primary }]}
+                onPress={handleManualBackup}
+                disabled={isBackingUp}
+              >
+                <Text style={[styles.backupButtonText, { color: '#FFFFFF' }]}>
+                  {isBackingUp ? 'Backing up...' : 'Backup Now'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.dismissButton, { borderColor: colors.border }]}
+                onPress={dismissBackupReminder}
+                disabled={isBackingUp}
+              >
+                <Text style={[styles.dismissButtonText, { color: colors.textSecondary }]}>Later</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         <View style={styles.transactionsHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Transactions</Text>
@@ -392,5 +535,72 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'flex-end', // Align items to bottom
+  },
+  // Backup Reminder Card Styles
+  backupReminderCard: {
+    marginTop: 16,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  backupReminderHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  backupReminderIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  backupReminderContent: {
+    flex: 1,
+  },
+  backupReminderTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 16,
+    marginBottom: 2,
+  },
+  backupReminderSubtitle: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 12,
+  },
+  backupReminderDescription: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  backupReminderActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  backupButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  backupButtonText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+  },
+  dismissButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  dismissButtonText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
   },
 });
