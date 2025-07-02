@@ -2,7 +2,7 @@ export default ({ config }) => ({
   ...config,
   name: 'moneytalk',
   slug: 'moneytalk',
-  version: '1.0.10',
+  version: '1.1.0',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   splash: {
@@ -103,6 +103,7 @@ export default ({ config }) => ({
     typedRoutes: true,
   },
   extra: {
+    website: 'https://moneytalk.space',
     router: {},
     eas: {
       projectId: '7f8649b1-237c-42ba-8218-0408cfc19694',

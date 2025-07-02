@@ -9,6 +9,7 @@ import CustomNotification from '@/components/CustomNotification';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { convertFromUTC, getUserTimezone } from '@/utils/timezoneUtils';
+import Constants from 'expo-constants';
 
 import { NativeAdCard } from '@/components/NativeAdCard';
 
@@ -244,25 +245,25 @@ export default function SettingsScreen() {
     const match = fileName.match(/_backup_(.+)\.db$/);
     if (match) {
       let timestamp = match[1];
-      
+
       // Convert filename timestamp format to ISO format
       // Replace hyphens in time part only (after T), keep date hyphens
       const parts = timestamp.split('T');
       if (parts.length === 2) {
         const datePart = parts[0]; // Keep date format: 2024-01-15
         const timePart = parts[1].replace(/-/g, ':').replace(/Z$/, ''); // Convert time: 10:30:45:123 -> 10:30:45.123
-        
+
         // Handle milliseconds format
         const timeWithMs = timePart.replace(/:([0-9]{3})$/, '.$1');
         timestamp = `${datePart}T${timeWithMs}Z`;
       }
-      
+
       try {
         const date = new Date(timestamp);
         if (isNaN(date.getTime())) {
           return fileName; // Return original if date is invalid
         }
-        
+
         // Format for Indonesia timezone (GMT+7)
         return date.toLocaleString('en-US', {
           timeZone: 'Asia/Jakarta',
@@ -281,7 +282,9 @@ export default function SettingsScreen() {
   };
 
   const handleAbout = () => {
-    showInfo('About', 'MoneyTalk v1.0.10\nA voice-powered expense tracker.\n\nCreated by Randhi Putra\nhttps://www.linkedin.com/in/randhipp/', 5000);
+    const appVersion = Constants.expoConfig?.version || '1.1.0';
+    const website = Constants.expoConfig?.extra?.website || 'https://moneytalk.space/';
+    showInfo('About', `MoneyTalk v${appVersion}\nA voice-powered expense tracker.\n${website}`, 5000);
   };
 
   return (
