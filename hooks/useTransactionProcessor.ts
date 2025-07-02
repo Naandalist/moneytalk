@@ -24,11 +24,19 @@ export const useTransactionProcessor = () => {
 
   const saveTransaction = async (transaction: Transaction, originalText?: string) => {
     try {
+      // Only use originalText if the description hasn't been edited
+      // If transaction.description is different from parsedTransaction.description,
+      // it means the user has edited it, so we should keep their edit
+      const useOriginalText = parsedTransaction && 
+                             transaction.description === parsedTransaction.description && 
+                             originalText;
+      
       const transactionWithText = {
         ...transaction,
-        description: originalText || transaction.description || ''
+        description: useOriginalText || transaction.description || ''
       };
 
+      console.log('Saving transaction with description:', transactionWithText.description);
       await addTransaction(transactionWithText);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setParsedTransaction(null);
