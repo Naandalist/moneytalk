@@ -45,7 +45,6 @@ export default ({ config }) => ({
       'android.permission.ACCESS_NETWORK_STATE',
       'android.permission.RECORD_AUDIO',
       'android.permission.VIBRATE',
-      'com.android.vending.BILLING',
     ],
     blockedPermissions: [
       'android.permission.READ_MEDIA_IMAGES',
