@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { formatCurrency, formatDate } from '@/utils/formatters';
@@ -16,6 +16,8 @@ export default function TransactionCard({ transaction, onPress, onLongPress }: T
   const { colors } = useTheme();
   const { selectedCurrency } = useCurrency();
   const CategoryIcon = getCategoryIcon(transaction.category);
+
+  
 
   const isExpense = transaction.type === 'expense';
   const amountColor = isExpense ? colors.error : colors.success;
@@ -46,9 +48,16 @@ export default function TransactionCard({ transaction, onPress, onLongPress }: T
         </Text>
       </View>
 
-      <Text style={[styles.amount, { color: amountColor }]}>
-        {amountPrefix}{formatCurrency(Math.abs(transaction.amount), selectedCurrency.code)}
-      </Text>
+      <View style={styles.rightSection}>
+        {transaction.imageUrl && (
+          <View style={[styles.imagePreview, { borderColor: colors.border, backgroundColor: colors.background }]}>
+            <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>📷</Text>
+          </View>
+        )}
+        <Text style={[styles.amount, { color: amountColor }]}>
+          {amountPrefix}{formatCurrency(Math.abs(transaction.amount), selectedCurrency.code)}
+        </Text>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -86,6 +95,22 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     fontSize: 14,
     marginTop: 4,
+  },
+  rightSection: {
+    alignItems: 'flex-end',
+  },
+  imagePreview: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    marginBottom: 4,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeholderText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
   amount: {
     fontFamily: 'Inter-Bold',

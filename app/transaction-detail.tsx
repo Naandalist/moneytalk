@@ -7,6 +7,8 @@ import {
     TouchableOpacity,
     TextInput,
     Modal,
+    Image,
+    Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
@@ -20,12 +22,39 @@ import { getCategoryIcon, categoryList } from '@/utils/categories';
 import { ArrowLeft, Edit3, Trash2, Save, X } from 'lucide-react-native';
 import CustomNotification from '@/components/CustomNotification';
 import { NativeAdCard } from '@/components/NativeAdCard';
+import { getSignedImageUrl } from '@/utils/imageUtils';
 
 export default function TransactionDetailScreen() {
     const { colors } = useTheme();
     const { deleteTransaction, updateTransaction } = useDatabase();
     const { selectedCurrency } = useCurrency();
     const { notification, showWarning, showSuccess, showError, hideNotification } = useNotification();
+
+    /**
+     * Load signed URL for secure image access
+     */
+    const loadSignedImageUrl = async () => {
+        if (!transaction?.imageUrl) {
+            setSignedImageUrl(null);
+            return;
+        }
+
+        setImageLoading(true);
+        try {
+            const result = await getSignedImageUrl(transaction.imageUrl, 3600); // 1 hour expiry
+            if (result.success && result.signedUrl) {
+                setSignedImageUrl(result.signedUrl);
+            } else {
+                console.error('Failed to load signed URL:', result.error);
+                setSignedImageUrl(null);
+            }
+        } catch (error) {
+            console.error('Error loading signed URL:', error);
+            setSignedImageUrl(null);
+        } finally {
+            setImageLoading(false);
+        }
+    };
     const insets = useSafeAreaInsets();
     const params = useLocalSearchParams();
 
@@ -33,6 +62,9 @@ export default function TransactionDetailScreen() {
     const [transaction, setTransaction] = useState<Transaction | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [showCategoryModal, setShowCategoryModal] = useState(false);
+    const [showImageModal, setShowImageModal] = useState(false);
+    const [signedImageUrl, setSignedImageUrl] = useState<string | null>(null);
+    const [imageLoading, setImageLoading] = useState(false);
 
     // Edit form state
     const [editForm, setEditForm] = useState({
@@ -48,7 +80,6 @@ export default function TransactionDetailScreen() {
             try {
                 const parsedTransaction = JSON.parse(params.transactionData as string) as Transaction;
                 setTransaction(parsedTransaction);
-                console.log('Setting edit form with description:', parsedTransaction.description);
                 setEditForm({
                     amount: Math.abs(parsedTransaction.amount).toString(),
                     category: parsedTransaction.category,
@@ -62,6 +93,11 @@ export default function TransactionDetailScreen() {
             }
         }
     }, [params.transactionData]);
+
+    // Load signed image URL when transaction changes
+    useEffect(() => {
+        loadSignedImageUrl();
+    }, [transaction?.imageUrl]);
 
     const handleDelete = () => {
         showWarning(
@@ -98,7 +134,7 @@ export default function TransactionDetailScreen() {
             if (!transaction || !transaction.id) {
                 throw new Error('Transaction ID is missing');
             }
-            
+
             // Create updated transaction object
             const updatedTransaction: Transaction = {
                 ...transaction,
@@ -108,12 +144,12 @@ export default function TransactionDetailScreen() {
                 description: editForm.description, // This is the edited description from the form
                 date: editForm.date
             };
-            
+
             // Log the transaction before update for debugging
             console.log('Updating transaction with description:', updatedTransaction.description);
-            
+
             const success = await updateTransaction(updatedTransaction);
-            
+
             if (success) {
                 showSuccess('Success', 'Transaction updated successfully');
                 setTransaction(updatedTransaction); // Update local state
@@ -274,6 +310,34 @@ export default function TransactionDetailScreen() {
                     )}
                 </View>
 
+                {/* Receipt Image Section */}
+                {transaction.imageUrl && (
+                    <View style={[styles.section, { backgroundColor: colors.card }]}>
+                        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Receipt Image</Text>
+                        <TouchableOpacity
+                            style={styles.imageContainer}
+                            onPress={() => signedImageUrl && setShowImageModal(true)}
+                            disabled={imageLoading || !signedImageUrl}
+                        >
+                            {imageLoading ? (
+                                <View style={[styles.receiptImage, { borderColor: colors.border, backgroundColor: colors.cardAlt, justifyContent: 'center', alignItems: 'center' }]}>
+                                    <Text style={[{ color: colors.textSecondary }]}>Loading...</Text>
+                                </View>
+                            ) : signedImageUrl ? (
+                                <Image
+                                    source={{ uri: signedImageUrl }}
+                                    style={[styles.receiptImage, { borderColor: colors.border }]}
+                                    resizeMode="contain"
+                                />
+                            ) : (
+                                <View style={[styles.receiptImage, { borderColor: colors.border, backgroundColor: colors.cardAlt, justifyContent: 'center', alignItems: 'center' }]}>
+                                    <Text style={[{ color: colors.textSecondary }]}>Failed to load image</Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                )}
+
                 {/* Date Section */}
                 <View style={[styles.section, { backgroundColor: colors.card }]}>
                     <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Date</Text>
@@ -316,6 +380,38 @@ export default function TransactionDetailScreen() {
                             })}
                         </ScrollView>
                     </View>
+                </View>
+            </Modal>
+
+            {/* Full Screen Image Modal */}
+            <Modal
+                visible={showImageModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowImageModal(false)}
+            >
+                <View style={styles.imageModalOverlay}>
+                    <TouchableOpacity
+                        style={styles.imageModalCloseArea}
+                        onPress={() => setShowImageModal(false)}
+                        activeOpacity={1}
+                    >
+                        <View style={styles.imageModalContent}>
+                            <TouchableOpacity
+                                style={styles.imageModalCloseButton}
+                                onPress={() => setShowImageModal(false)}
+                            >
+                                <X size={24} color={colors.white} />
+                            </TouchableOpacity>
+                            {signedImageUrl && (
+                                <Image
+                                    source={{ uri: signedImageUrl }}
+                                    style={styles.fullScreenImage}
+                                    resizeMode="contain"
+                                />
+                            )}
+                        </View>
+                    </TouchableOpacity>
                 </View>
             </Modal>
 
@@ -485,5 +581,46 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         borderBottomWidth: 1,
+    },
+    imageContainer: {
+        alignItems: 'center',
+        marginTop: 8,
+    },
+    receiptImage: {
+        width: Dimensions.get('window').width - 64, // Full width minus padding
+        height: 200,
+        borderRadius: 12,
+        borderWidth: 1,
+    },
+    imageModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    imageModalCloseArea: {
+        flex: 1,
+        width: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    imageModalContent: {
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    imageModalCloseButton: {
+        position: 'absolute',
+        top: 60,
+        right: 20,
+        zIndex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        borderRadius: 20,
+        padding: 8,
+    },
+    fullScreenImage: {
+        width: Dimensions.get('window').width,
+        height: Dimensions.get('window').height,
     },
 });

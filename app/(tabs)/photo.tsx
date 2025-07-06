@@ -14,13 +14,17 @@ import { useOpenAI } from '@/utils/useOpenAI';
 import { useTransactionProcessor } from '@/hooks/useTransactionProcessor';
 import * as Haptics from 'expo-haptics';
 import { useAdMob } from '@/utils/admob';
+import { useAuth } from '@/context/AuthContext';
+import { uploadImageWithFallback } from '../../utils/imageUtils';
 
 export default function PhotoCaptureScreen() {
     const { showAdWithDelay } = useAdMob(['food', 'car', 'fruit', 'finance', 'app', 'kids', 'family', 'cooking', 'travel']);
     const { colors } = useTheme();
     const insets = useSafeAreaInsets();
     const { notification, hideNotification, showError, showSuccess } = useNotification();
+    const { user } = useAuth();
     const [isProcessing, setIsProcessing] = useState(false);
+    const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
 
     // Custom hooks
     const { analyzeImage } = useOpenAI({
@@ -56,9 +60,33 @@ export default function PhotoCaptureScreen() {
         if (!selectedImage) return;
 
         try {
-            setIsProcessing(true)
+            setIsProcessing(true);
+            
+            // Upload image with fallback mechanism
+            let imageUrl: string | undefined;
+            if (user?.id) {
+                const uploadResult = await uploadImageWithFallback(selectedImage, user.id);
+                if (uploadResult.success && uploadResult.url) {
+                    imageUrl = uploadResult.url;
+                    setUploadedImageUrl(imageUrl);
+                    console.log('Image processed successfully:', imageUrl);
+                    
+                    // Show info if using local backup
+                    if (uploadResult.error) {
+                        console.log('Using local backup:', uploadResult.error);
+                    }
+                } else {
+                    console.warn('Failed to process image:', uploadResult.error);
+                    showError('Warning', 'Image processing failed, but analysis will continue.');
+                }
+            } else {
+                console.warn('No authenticated user, skipping image upload');
+            }
+            
+            // Analyze the receipt
             const parsedResult = await analyzeImage(selectedImage);
             console.log({ parsedResult });
+            
             const transaction: Transaction = {
                 id: 0,
                 amount: Math.abs(parsedResult.amount || 0),
@@ -66,11 +94,12 @@ export default function PhotoCaptureScreen() {
                 type: parsedResult.type || 'expense',
                 description: parsedResult.description || 'Receipt transaction',
                 date: new Date().toISOString(), // Already in UTC, correct for database storage
+                imageUrl: imageUrl, // Include the uploaded image URL
             };
 
             setParsedTransaction(transaction);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            setIsProcessing(false)
+            setIsProcessing(false);
         } catch (error) {
             console.error('Error analyzing receipt:', error);
             showError('Error', 'Failed to analyze receipt. Please try again.');
@@ -94,6 +123,7 @@ export default function PhotoCaptureScreen() {
 
     const handleCancel = () => {
         setSelectedImage(null);
+        setUploadedImageUrl(null);
         cancelTransaction();
     };
 

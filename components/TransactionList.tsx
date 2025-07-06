@@ -1,16 +1,38 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
+import { useRouter } from 'expo-router';
 import TransactionCard from './TransactionCard';
 import { Transaction } from '@/types/transaction';
 import { NativeAdCard } from './NativeAdCard';
 
 type TransactionListProps = {
   transactions: Transaction[];
+  onTransactionPress?: (transaction: Transaction) => void;
 };
 
-export default function TransactionList({ transactions }: TransactionListProps) {
+export default function TransactionList({ transactions, onTransactionPress }: TransactionListProps) {
   const { colors } = useTheme();
+  const router = useRouter();
+
+  /**
+   * Handle transaction card press - navigate to transaction detail page
+   * @param transaction - The transaction to view details for
+   */
+  const handleTransactionPress = (transaction: Transaction) => {
+    if (onTransactionPress) {
+      onTransactionPress(transaction);
+    } else {
+      // Default navigation behavior
+      router.push({
+        pathname: '/transaction-detail',
+        params: {
+          transactionId: transaction.id.toString(),
+          transactionData: JSON.stringify(transaction)
+        }
+      });
+    }
+  };
 
   if (transactions.length === 0) {
     return (
@@ -31,7 +53,7 @@ export default function TransactionList({ transactions }: TransactionListProps) 
           {((index + 1) % 3 === 0 || (transactions.length < 3 && index === 0)) && <NativeAdCard key={index} />}
           <TransactionCard
             transaction={item}
-            onPress={() => { }}
+            onPress={() => handleTransactionPress(item)}
           />
         </View>
       )}

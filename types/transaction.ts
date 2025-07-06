@@ -5,4 +5,5 @@ export interface Transaction {
   type: 'expense' | 'income';
   description?: string;
   date: string;
+  imageUrl?: string;
 }

@@ -214,6 +214,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           type: transaction.type,
           description: transaction.description || '',
           date: transaction.date || new Date().toISOString(),
+          image_url: transaction.imageUrl || null,
           user_id: userId
         })
         .select()
@@ -414,7 +415,16 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         throw error;
       }
 
-      return data || [];
+      // Transform database fields to match TypeScript interface
+      const transformedData = (data || []).map(transaction => ({
+        ...transaction,
+        imageUrl: transaction.image_url, // Map snake_case to camelCase
+        image_url: undefined // Remove the original field
+      }));
+
+
+
+      return transformedData;
     } catch (error) {
       console.error('Error getting recent transactions:', error);
       throw error;
@@ -436,7 +446,14 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         throw error;
       }
 
-      return data || [];
+      // Transform database fields to match TypeScript interface
+      const transformedData = (data || []).map(transaction => ({
+        ...transaction,
+        imageUrl: transaction.image_url, // Map snake_case to camelCase
+        image_url: undefined // Remove the original field
+      }));
+
+      return transformedData;
     } catch (error) {
       console.error('Error getting transactions:', error);
       throw error;
@@ -480,7 +497,14 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         throw error;
       }
 
-      return data || [];
+      // Transform database fields to match TypeScript interface
+      const transformedData = (data || []).map(transaction => ({
+        ...transaction,
+        imageUrl: transaction.image_url, // Map snake_case to camelCase
+        image_url: undefined // Remove the original field
+      }));
+
+      return transformedData;
     } catch (error) {
       console.error('Error getting transactions by period:', error);
       throw error;
@@ -512,7 +536,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Get transactions from Supabase
       let query = supabase
         .from('transactions')
-        .select('category, amount')
+        .select('category, amount, image_url')
         .eq('user_id', userId)
         .eq('type', 'expense');
 
@@ -535,12 +559,14 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           const existing = categoryMap.get(category);
           categoryMap.set(category, {
             category,
-            amount: existing.amount + Math.abs(transaction.amount)
+            amount: existing.amount + Math.abs(transaction.amount),
+            imageUrl: transaction.image_url || existing.imageUrl
           });
         } else {
           categoryMap.set(category, {
             category,
-            amount: Math.abs(transaction.amount)
+            amount: Math.abs(transaction.amount),
+            imageUrl: transaction.image_url
           });
         }
       });
@@ -929,7 +955,8 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           category: transaction.category,
           type: transaction.type,
           description: transaction.description || '',
-          date: transaction.date || new Date().toISOString()
+          date: transaction.date || new Date().toISOString(),
+          image_url: transaction.imageUrl || null
         })
         .eq('id', transaction.id)
         .eq('user_id', userId)

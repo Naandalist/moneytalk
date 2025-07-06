@@ -42,6 +42,7 @@ CREATE TABLE transactions (
   type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
   description TEXT,
   date TEXT NOT NULL,
+  image_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -83,12 +84,22 @@ CREATE TABLE settings (
 -- Indexes for better performance
 CREATE INDEX idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX idx_transactions_date ON transactions(date);
+CREATE INDEX idx_transactions_image_url ON transactions(image_url) WHERE image_url IS NOT NULL;
 CREATE INDEX idx_ai_suggestions_user_id ON ai_suggestions(user_id);
 CREATE INDEX idx_daily_refresh_count_user_id ON daily_refresh_count(user_id);
 CREATE INDEX idx_settings_user_id ON settings(user_id);
 ```
 
-### 3. Row Level Security (RLS) Policies
+### 3. Storage Setup
+
+Create a storage bucket for receipt images:
+
+1. Go to Storage in your Supabase dashboard
+2. Create a new bucket named `images`
+3. Set the bucket to public (for easier access to receipt images)
+4. Or configure RLS policies for the bucket if you prefer private storage
+
+### 4. Row Level Security (RLS) Policies
 
 **Option 1: Disable RLS (Recommended for device-based auth)**
 
@@ -143,12 +154,12 @@ The app generates a unique device ID for each installation and uses it to identi
 
 ## Installation
 
-1. Install the new dependency:
+1. Install the required dependencies:
 
 ```bash
-npm install expo-crypto
+npm install expo-crypto expo-image-manipulator
 # or
-yarn add expo-crypto
+yarn add expo-crypto expo-image-manipulator
 ```
 
 2. If using Expo development build, rebuild your app:
@@ -166,6 +177,7 @@ The cloud backup system provides:
 - **Device-based Authentication**: No user accounts required
 - **Data Privacy**: Each device has isolated data
 - **Offline Support**: Works offline, syncs when connected
+- **Receipt Image Storage**: Automatically resizes images to under 100KB and stores them in Supabase storage
 
 ## Troubleshooting
 
