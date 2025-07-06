@@ -16,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { useAdMob } from '@/utils/admob';
 import { useAuth } from '@/context/AuthContext';
 import { uploadImageWithFallback } from '../../utils/imageUtils';
+import AuthModal from '@/components/AuthModal';
 
 export default function PhotoCaptureScreen() {
     const { showAdWithDelay } = useAdMob(['food', 'car', 'fruit', 'finance', 'app', 'kids', 'family', 'cooking', 'travel']);
@@ -25,6 +26,7 @@ export default function PhotoCaptureScreen() {
     const { user } = useAuth();
     const [isProcessing, setIsProcessing] = useState(false);
     const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+    const [showAuthModal, setShowAuthModal] = useState(false);
 
     // Custom hooks
     const { analyzeImage } = useOpenAI({
@@ -39,7 +41,17 @@ export default function PhotoCaptureScreen() {
 
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
+    /**
+     * Function to pick image from gallery
+     * Checks if user is authenticated before allowing access
+     */
     const pickImage = async () => {
+        // Check if user is authenticated
+        if (!user) {
+            setShowAuthModal(true);
+            return;
+        }
+
         try {
             const result = await DocumentPicker.getDocumentAsync({
                 type: 'image/*',
@@ -131,6 +143,38 @@ export default function PhotoCaptureScreen() {
         router.back();
     };
 
+    /**
+     * Handle successful authentication
+     * Close auth modal and proceed with image picking
+     */
+    const handleAuthSuccess = async () => {
+        setShowAuthModal(false);
+        // Automatically trigger image picking after successful authentication
+        setTimeout(async () => {
+            try {
+                const result = await DocumentPicker.getDocumentAsync({
+                    type: 'image/*',
+                    copyToCacheDirectory: true,
+                });
+
+                if (!result.canceled && result.assets && result.assets[0]) {
+                    setSelectedImage(result.assets[0].uri);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }
+            } catch (error) {
+                console.error('Error picking image:', error);
+                Alert.alert('Error', 'Failed to select image. Please try again.');
+            }
+        }, 100);
+    };
+
+    /**
+     * Handle auth modal close
+     */
+    const handleAuthModalClose = () => {
+        setShowAuthModal(false);
+    };
+
     return (
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
             <View style={styles.header}>
@@ -192,6 +236,12 @@ export default function PhotoCaptureScreen() {
             </View>
 
             <CustomNotification notification={notification} onClose={hideNotification} />
+            
+            <AuthModal
+                visible={showAuthModal}
+                onClose={handleAuthModalClose}
+                onSuccess={handleAuthSuccess}
+            />
         </View>
     );
 }

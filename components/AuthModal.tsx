@@ -14,6 +14,7 @@ import {
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { X, Mail, Lock, User } from 'lucide-react-native';
+import { useNotification } from '@/hooks/useNotification';
 
 interface AuthModalProps {
   visible: boolean;
@@ -29,6 +30,7 @@ export default function AuthModal({ visible, onClose, onSuccess }: AuthModalProp
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const { showSuccess } = useNotification();
 
   const handleSubmit = async () => {
     if (!email || !password) {
@@ -57,11 +59,8 @@ export default function AuthModal({ visible, onClose, onSuccess }: AuthModalProp
         Alert.alert('Error', error.message);
       } else {
         if (isSignUp) {
-          Alert.alert(
-            'Success',
-            'Account created successfully! Please check your email to verify your account.',
-            [{ text: 'OK', onPress: onSuccess }]
-          );
+          showSuccess('Success', 'Account created successfully! Now you can save the transaction.', 2000);
+          onSuccess();
         } else {
           onSuccess();
         }
