@@ -3,6 +3,7 @@ import * as SQLite from 'expo-sqlite';
 import * as FileSystem from 'expo-file-system';
 import { Transaction } from '@/types/transaction';
 import { getCurrentDateInTimezone, getUserTimezone } from '@/utils/timezoneUtils';
+import { cloudBackup, CloudBackupService } from '@/utils/cloudBackup';
 
 type DatabaseContextType = {
   isReady: boolean;
@@ -25,6 +26,11 @@ type DatabaseContextType = {
   manualBackup: () => Promise<boolean>;
   getBackupFiles: () => Promise<{ transactions: string[], settings: string[] }>;
   restoreBackup: (transactionBackupFile?: string, settingsBackupFile?: string) => Promise<boolean>;
+  cloudBackupData: () => Promise<{ success: boolean; message: string }>;
+  cloudRestoreData: () => Promise<{ success: boolean; message: string }>;
+  getCloudSyncStatus: () => Promise<any>;
+  enableAutoSync: (enabled: boolean) => Promise<void>;
+  isCloudBackupEnabled: () => Promise<boolean>;
 };
 
 const DatabaseContext = createContext<DatabaseContextType>({
@@ -48,6 +54,11 @@ const DatabaseContext = createContext<DatabaseContextType>({
   manualBackup: async () => false,
   getBackupFiles: async () => ({ transactions: [], settings: [] }),
   restoreBackup: async () => false,
+  cloudBackupData: async () => ({ success: false, message: '' }),
+  cloudRestoreData: async () => ({ success: false, message: '' }),
+  getCloudSyncStatus: async () => ({}),
+  enableAutoSync: async () => { },
+  isCloudBackupEnabled: async () => false,
 });
 
 export const useDatabase = () => useContext(DatabaseContext);
@@ -67,50 +78,50 @@ let settingsDb: SQLite.SQLiteDatabase;
 const migrateExistingDatabases = async (): Promise<void> => {
   try {
     console.log('Checking for existing databases to migrate...');
-    
+
     // Check if databases already exist in document directory
     const newDbExists = await FileSystem.getInfoAsync(DB_PATH);
     const newSettingsDbExists = await FileSystem.getInfoAsync(SETTINGS_DB_PATH);
-    
+
     if (newDbExists.exists && newSettingsDbExists.exists) {
       console.log('Databases already exist in document directory, skipping migration');
       return;
     }
-    
+
     // Try to open old databases to check if they exist and have data
     try {
       const oldDb = await SQLite.openDatabaseAsync('transactions.db');
       const oldSettingsDb = await SQLite.openDatabaseAsync('settings.db');
-      
+
       // Check if old databases have data
       const transactionCount = await oldDb.getFirstAsync(
         'SELECT COUNT(*) as count FROM transactions'
       ) as { count: number } | null;
-      
+
       const suggestionCount = await oldSettingsDb.getFirstAsync(
         'SELECT COUNT(*) as count FROM ai_suggestions'
       ) as { count: number } | null;
-      
+
       if ((transactionCount?.count || 0) > 0 || (suggestionCount?.count || 0) > 0) {
         console.log(`Found ${transactionCount?.count || 0} transactions and ${suggestionCount?.count || 0} AI suggestions to migrate`);
-        
+
         // Export data from old databases
         const transactions = await oldDb.getAllAsync('SELECT * FROM transactions') as Transaction[];
         const aiSuggestions = await oldSettingsDb.getAllAsync('SELECT * FROM ai_suggestions');
         const refreshCounts = await oldSettingsDb.getAllAsync('SELECT * FROM daily_refresh_count');
         const settings = await oldSettingsDb.getAllAsync('SELECT * FROM settings');
-        
+
         // Close old databases
         await oldDb.closeAsync();
         await oldSettingsDb.closeAsync();
-        
+
         // Create new databases in document directory
         const newDb = await SQLite.openDatabaseAsync(DB_PATH);
         const newSettingsDb = await SQLite.openDatabaseAsync(SETTINGS_DB_PATH);
-        
+
         // Create tables in new databases
         await createTables(newDb, newSettingsDb);
-        
+
         // Migrate data
         console.log('Migrating transaction data...');
         for (const transaction of transactions) {
@@ -126,7 +137,7 @@ const migrateExistingDatabases = async (): Promise<void> => {
             ]
           );
         }
-        
+
         console.log('Migrating AI suggestions...');
         for (const suggestion of aiSuggestions) {
           const suggestionRecord = suggestion as any;
@@ -135,7 +146,7 @@ const migrateExistingDatabases = async (): Promise<void> => {
             [suggestionRecord.id, suggestionRecord.user_id, suggestionRecord.suggestion, suggestionRecord.timestamp, suggestionRecord.created_at]
           );
         }
-        
+
         console.log('Migrating refresh counts...');
         for (const count of refreshCounts) {
           const countRecord = count as any;
@@ -144,7 +155,7 @@ const migrateExistingDatabases = async (): Promise<void> => {
             [countRecord.id, countRecord.user_id, countRecord.date, countRecord.count, countRecord.created_at]
           );
         }
-        
+
         console.log('Migrating settings...');
         for (const setting of settings) {
           const settingRecord = setting as any;
@@ -153,10 +164,10 @@ const migrateExistingDatabases = async (): Promise<void> => {
             [settingRecord.key, settingRecord.value]
           );
         }
-        
+
         await newDb.closeAsync();
         await newSettingsDb.closeAsync();
-        
+
         console.log('Database migration completed successfully');
       } else {
         console.log('No data found in old databases, skipping migration');
@@ -221,7 +232,7 @@ const initDatabase = async (setIsReady: (ready: boolean) => void) => {
   try {
     console.log('Initializing database with FileSystem.documentDirectory...');
     console.log('Document directory:', FileSystem.documentDirectory);
-    
+
     // Ensure the document directory exists
     const dirInfo = await FileSystem.getInfoAsync(FileSystem.documentDirectory!);
     if (!dirInfo.exists) {
@@ -235,7 +246,7 @@ const initDatabase = async (setIsReady: (ready: boolean) => void) => {
     console.log('Opening databases at:');
     console.log('Main DB:', DB_PATH);
     console.log('Settings DB:', SETTINGS_DB_PATH);
-    
+
     db = await SQLite.openDatabaseAsync(DB_PATH);
     settingsDb = await SQLite.openDatabaseAsync(SETTINGS_DB_PATH);
 
@@ -246,7 +257,7 @@ const initDatabase = async (setIsReady: (ready: boolean) => void) => {
     const transactionCount = await db.getFirstAsync(
       'SELECT COUNT(*) as count FROM transactions'
     ) as { count: number } | null;
-    
+
     console.log(`Database initialized successfully. Found ${transactionCount?.count || 0} existing transactions.`);
     console.log('Database files located at:');
     console.log('- Transactions:', DB_PATH);
@@ -256,7 +267,7 @@ const initDatabase = async (setIsReady: (ready: boolean) => void) => {
   } catch (error) {
     console.error('Database initialization error:', error);
     setIsReady(false);
-    
+
     // Try to recover by creating new databases
     try {
       console.log('Attempting database recovery...');
@@ -274,10 +285,40 @@ const initDatabase = async (setIsReady: (ready: boolean) => void) => {
 
 export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isReady, setIsReady] = useState(false);
+  const [cloudBackupInitialized, setCloudBackupInitialized] = useState(false);
 
   useEffect(() => {
     initDatabase(setIsReady);
   }, []);
+
+  useEffect(() => {
+    // Initialize cloud backup when database is ready
+    if (isReady && !cloudBackupInitialized) {
+      initializeCloudBackup();
+    }
+  }, [isReady, cloudBackupInitialized]);
+
+  /**
+   * Initialize cloud backup service
+   */
+  const initializeCloudBackup = async () => {
+    try {
+      const success = await cloudBackup.initialize();
+      setCloudBackupInitialized(success);
+
+      if (success) {
+        console.log('Cloud backup initialized successfully');
+        // Perform initial sync if enabled
+        const autoSyncEnabled = await isCloudBackupEnabled();
+        if (autoSyncEnabled) {
+          const transactions = await getAllTransactions();
+          await cloudBackup.autoSync(transactions);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to initialize cloud backup:', error);
+    }
+  };
 
   const addTransaction = async (transaction: Transaction): Promise<number> => {
     try {
@@ -292,9 +333,154 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           transaction.date || new Date().toISOString()
         ]
       );
+
+      // Auto-sync to cloud if enabled
+      const autoSyncEnabled = await isCloudBackupEnabled();
+      if (autoSyncEnabled && cloudBackupInitialized) {
+        const allTransactions = await getAllTransactions();
+        cloudBackup.autoSync(allTransactions).catch(console.error);
+      }
+
       return result.lastInsertRowId || 0;
     } catch (error) {
       throw error;
+    }
+  };
+
+  /**
+   * Manual cloud backup of all data
+   */
+  const cloudBackupData = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      if (!cloudBackupInitialized) {
+        return { success: false, message: 'Cloud backup not initialized' };
+      }
+
+      const transactions = await getAllTransactions();
+      const result = await cloudBackup.backupTransactions(transactions);
+
+      // Also backup AI suggestions
+      const aiSuggestion = await getAISuggestion();
+      if (aiSuggestion) {
+        await cloudBackup.backupAISuggestions(aiSuggestion.suggestion, aiSuggestion.timestamp);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error during cloud backup:', error);
+      return {
+        success: false,
+        message: 'Cloud backup failed: ' + (error as Error).message,
+      };
+    }
+  };
+
+  /**
+   * Restore data from cloud backup
+   */
+  const cloudRestoreData = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      if (!cloudBackupInitialized) {
+        return { success: false, message: 'Cloud backup not initialized' };
+      }
+
+      // Restore transactions
+      const transactionResult = await cloudBackup.restoreTransactions();
+
+      if (transactionResult.success && transactionResult.transactions.length > 0) {
+        // Clear existing transactions
+        await db.runAsync('DELETE FROM transactions');
+
+        // Insert restored transactions
+        for (const transaction of transactionResult.transactions) {
+          await db.runAsync(
+            'INSERT INTO transactions (id, amount, category, type, description, date) VALUES (?, ?, ?, ?, ?, ?)',
+            [
+              transaction.id || 0,
+              transaction.amount,
+              transaction.category,
+              transaction.type,
+              transaction.description || '',
+              transaction.date
+            ]
+          );
+        }
+      }
+
+      // Restore AI suggestions
+      const aiSuggestion = await cloudBackup.restoreAISuggestions();
+      if (aiSuggestion) {
+        await settingsDb.runAsync(
+          `INSERT OR REPLACE INTO ai_suggestions (user_id, suggestion, timestamp, created_at) 
+           VALUES ('default_user', ?, ?, ?)`,
+          [aiSuggestion.suggestion, aiSuggestion.timestamp, new Date().toISOString()]
+        );
+      }
+
+      return {
+        success: true,
+        message: `Successfully restored ${transactionResult.transactions.length} transactions`,
+      };
+    } catch (error) {
+      console.error('Error during cloud restore:', error);
+      return {
+        success: false,
+        message: 'Cloud restore failed: ' + (error as Error).message,
+      };
+    }
+  };
+
+  /**
+   * Get cloud sync status
+   */
+  const getCloudSyncStatus = async (): Promise<any> => {
+    try {
+      if (!cloudBackupInitialized) {
+        return { enabled: false, message: 'Cloud backup not initialized' };
+      }
+
+      const status = await cloudBackup.getSyncStatus();
+      const isEnabled = await isCloudBackupEnabled();
+
+      return {
+        enabled: isEnabled,
+        authenticated: cloudBackup.isAuthenticated(),
+        userId: cloudBackup.getUserId(),
+        ...status,
+      };
+    } catch (error) {
+      console.error('Error getting cloud sync status:', error);
+      return { enabled: false, error: (error as Error).message };
+    }
+  };
+
+  /**
+   * Enable or disable auto-sync
+   */
+  const enableAutoSync = async (enabled: boolean): Promise<void> => {
+    try {
+      await settingsDb.runAsync(
+        `INSERT OR REPLACE INTO settings (key, value) VALUES ('auto_sync_enabled', ?)`,
+        [enabled ? 'true' : 'false']
+      );
+    } catch (error) {
+      console.error('Error setting auto sync preference:', error);
+    }
+  };
+
+  /**
+   * Check if cloud backup is enabled
+   */
+  const isCloudBackupEnabled = async (): Promise<boolean> => {
+    try {
+      const result = await settingsDb.getFirstAsync(
+        `SELECT value FROM settings WHERE key = 'auto_sync_enabled'`
+      ) as { value: string } | null;
+
+      return result?.value === 'true';
+    } catch (error) {
+      console.error('Error checking auto sync preference:', error);
+      return false;
     }
   };
 
@@ -438,6 +624,12 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
          VALUES ('default_user', ?, ?, ?)`,
         [suggestion, timestamp, new Date().toISOString()]
       );
+
+      // Backup to cloud if enabled
+      const autoSyncEnabled = await isCloudBackupEnabled();
+      if (autoSyncEnabled && cloudBackupInitialized) {
+        cloudBackup.backupAISuggestions(suggestion, timestamp).catch(console.error);
+      }
     } catch (error) {
       throw error;
     }
@@ -454,7 +646,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
          WHERE user_id = 'default_user' 
          ORDER BY created_at DESC LIMIT 1`
       ) as { suggestion: string; timestamp: number } | null;
-      
+
       return result;
     } catch (error) {
       throw error;
@@ -486,7 +678,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
          WHERE user_id = 'default_user' AND date = ?`,
         [today]
       ) as { count: number } | null;
-      
+
       return result?.count || 0;
     } catch (error) {
       throw error;
@@ -500,7 +692,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const today = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD format
       const currentCount = await getDailyRefreshCount();
-      
+
       if (currentCount === 0) {
         // Insert new record for today
         await settingsDb.runAsync(
@@ -542,15 +734,15 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const dbInfo = await FileSystem.getInfoAsync(DB_PATH);
       const settingsDbInfo = await FileSystem.getInfoAsync(SETTINGS_DB_PATH);
-      
+
       const transactionCount = await db.getFirstAsync(
         'SELECT COUNT(*) as count FROM transactions'
       ) as { count: number } | null;
-      
+
       const suggestionCount = await settingsDb.getFirstAsync(
         'SELECT COUNT(*) as count FROM ai_suggestions'
       ) as { count: number } | null;
-      
+
       return {
         documentDirectory: FileSystem.documentDirectory,
         mainDatabase: {
@@ -579,31 +771,31 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const backupDir = FileSystem.documentDirectory + 'backups/';
-      
+
       // Create backup directory if it doesn't exist
       const backupDirInfo = await FileSystem.getInfoAsync(backupDir);
       if (!backupDirInfo.exists) {
         await FileSystem.makeDirectoryAsync(backupDir, { intermediates: true });
       }
-      
+
       // Copy database files to backup directory
       const backupDbPath = backupDir + `transactions_backup_${timestamp}.db`;
       const backupSettingsPath = backupDir + `settings_backup_${timestamp}.db`;
-      
+
       await FileSystem.copyAsync({
         from: DB_PATH,
         to: backupDbPath,
       });
-      
+
       await FileSystem.copyAsync({
         from: SETTINGS_DB_PATH,
         to: backupSettingsPath,
       });
-      
+
       console.log('Manual backup completed:');
       console.log('- Transactions backup:', backupDbPath);
       console.log('- Settings backup:', backupSettingsPath);
-      
+
       return true;
     } catch (error) {
       console.error('Manual backup failed:', error);
@@ -618,15 +810,15 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const backupDir = FileSystem.documentDirectory + 'backups/';
       const backupDirInfo = await FileSystem.getInfoAsync(backupDir);
-      
+
       if (!backupDirInfo.exists) {
         return { transactions: [], settings: [] };
       }
-      
+
       const files = await FileSystem.readDirectoryAsync(backupDir);
       const transactionBackups = files.filter(file => file.startsWith('transactions_backup_') && file.endsWith('.db'));
       const settingsBackups = files.filter(file => file.startsWith('settings_backup_') && file.endsWith('.db'));
-      
+
       return {
         transactions: transactionBackups.sort().reverse(), // Most recent first
         settings: settingsBackups.sort().reverse()
@@ -643,16 +835,16 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const restoreBackup = async (transactionBackupFile?: string, settingsBackupFile?: string): Promise<boolean> => {
     try {
       const backupDir = FileSystem.documentDirectory + 'backups/';
-      
+
       // Close current database connections
       await db.closeAsync();
       await settingsDb.closeAsync();
-      
+
       // Restore transaction database if specified
       if (transactionBackupFile) {
         const backupPath = backupDir + transactionBackupFile;
         const backupInfo = await FileSystem.getInfoAsync(backupPath);
-        
+
         if (backupInfo.exists) {
           await FileSystem.copyAsync({
             from: backupPath,
@@ -663,12 +855,12 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           throw new Error('Transaction backup file not found');
         }
       }
-      
+
       // Restore settings database if specified
       if (settingsBackupFile) {
         const backupPath = backupDir + settingsBackupFile;
         const backupInfo = await FileSystem.getInfoAsync(backupPath);
-        
+
         if (backupInfo.exists) {
           await FileSystem.copyAsync({
             from: backupPath,
@@ -679,10 +871,10 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           throw new Error('Settings backup file not found');
         }
       }
-      
+
       // Reinitialize databases
       await initDatabase(setIsReady);
-      
+
       return true;
     } catch (error) {
       console.error('Restore backup failed:', error);
@@ -729,9 +921,9 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         `SELECT * FROM transactions WHERE id = ?`,
         [transaction.id]
       ) as Transaction | null;
-      
+
       console.log('DatabaseContext - After update, transaction description:', updatedTransaction?.description);
-      
+
       return true;
     } catch (error) {
       console.error('Error updating transaction:', error);
@@ -761,6 +953,12 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       manualBackup,
       getBackupFiles,
       restoreBackup,
+      // New cloud backup methods
+      cloudBackupData,
+      cloudRestoreData,
+      getCloudSyncStatus,
+      enableAutoSync,
+      isCloudBackupEnabled,
     }}>
       {children}
     </DatabaseContext.Provider>

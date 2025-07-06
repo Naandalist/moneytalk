@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, Alert, Modal } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, Alert, Modal, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Moon, Sun, Trash2, RefreshCcw, Database, Info } from 'lucide-react-native';
@@ -12,11 +12,26 @@ import { convertFromUTC, getUserTimezone } from '@/utils/timezoneUtils';
 import Constants from 'expo-constants';
 
 import { NativeAdCard } from '@/components/NativeAdCard';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function SettingsScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { clearAllTransactions, getAllTransactions, getDatabaseInfo, manualBackup, getBackupFiles, restoreBackup } = useDatabase();
+  const {
+    clearAllTransactions,
+    getAllTransactions,
+    getDatabaseInfo,
+    manualBackup,
+    getBackupFiles,
+    restoreBackup,
+    // Add these cloud backup functions
+    getCloudSyncStatus,
+    isCloudBackupEnabled,
+    cloudBackupData,
+    cloudRestoreData,
+    enableAutoSync
+  } = useDatabase();
+
   const { notification, showWarning, showInfo, showSuccess, showError, hideNotification } = useNotification();
   const [isClearing, setIsClearing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -28,6 +43,94 @@ export default function SettingsScreen() {
   const [selectedTransactionBackup, setSelectedTransactionBackup] = useState<string | undefined>();
   const [selectedSettingsBackup, setSelectedSettingsBackup] = useState<string | undefined>();
   const [dbInfo, setDbInfo] = useState<any>(null);
+
+  // Add these state variables in your SettingsScreen component
+  const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<any>(null);
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+
+  // Add these methods
+  const loadCloudSyncStatus = async () => {
+    try {
+      const status = await getCloudSyncStatus();
+      setCloudSyncStatus(status);
+      const enabled = await isCloudBackupEnabled();
+      setCloudSyncEnabled(enabled);
+    } catch (error) {
+      console.error('Error loading cloud sync status:', error);
+    }
+  };
+
+  const handleCloudBackup = async () => {
+    setIsCloudSyncing(true);
+    try {
+      const result = await cloudBackupData();
+      if (result.success) {
+        showSuccess('Cloud Backup Complete', result.message);
+        await loadCloudSyncStatus();
+      } else {
+        showError('Cloud Backup Failed', result.message);
+      }
+    } catch (error) {
+      showError('Cloud Backup Failed', (error as Error).message);
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
+
+  const handleCloudRestore = async () => {
+    Alert.alert(
+      'Restore from Cloud',
+      'This will replace your current data with data from cloud backup. This action cannot be undone. Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Restore',
+          style: 'destructive',
+          onPress: async () => {
+            setIsCloudSyncing(true);
+            try {
+              const result = await cloudRestoreData();
+              if (result.success) {
+                showSuccess('Cloud Restore Complete', result.message);
+                await loadCloudSyncStatus();
+              } else {
+                showError('Cloud Restore Failed', result.message);
+              }
+            } catch (error) {
+              showError('Cloud Restore Failed', (error as Error).message);
+            } finally {
+              setIsCloudSyncing(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const toggleCloudSync = async (enabled: boolean) => {
+    try {
+      await enableAutoSync(enabled);
+      setCloudSyncEnabled(enabled);
+
+      if (enabled) {
+        // Perform initial backup when enabling
+        await handleCloudBackup();
+      }
+
+      showSuccess(
+        'Auto Sync Updated',
+        `Cloud auto-sync has been ${enabled ? 'enabled' : 'disabled'}`
+      );
+    } catch (error) {
+      showError('Settings Error', 'Failed to update auto-sync setting');
+    }
+  };
+
+  // Add useEffect to load cloud sync status
+  useEffect(() => {
+    loadCloudSyncStatus();
+  }, []);
 
   const handleClearData = () => {
     showWarning(
@@ -317,6 +420,83 @@ export default function SettingsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Data Management</Text>
+
+          <View style={[styles.section, { backgroundColor: colors.card }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Cloud Backup</Text>
+
+            <TouchableOpacity
+              style={[styles.settingItem, { borderBottomColor: colors.border }]}
+              onPress={() => toggleCloudSync(!cloudSyncEnabled)}
+            >
+              <View style={styles.settingContent}>
+                <Ionicons name="cloud-outline" size={24} color={colors.text} />
+                <View style={styles.settingText}>
+                  <Text style={[styles.settingTitle, { color: colors.text }]}>Auto Cloud Sync</Text>
+                  <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                    Automatically backup data to cloud
+                  </Text>
+                </View>
+              </View>
+              <Switch
+                value={cloudSyncEnabled}
+                onValueChange={toggleCloudSync}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={cloudSyncEnabled ? colors.background : colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.settingItem, { borderBottomColor: colors.border }]}
+              onPress={handleCloudBackup}
+              disabled={isCloudSyncing}
+            >
+              <View style={styles.settingContent}>
+                <Ionicons name="cloud-upload-outline" size={24} color={colors.text} />
+                <View style={styles.settingText}>
+                  <Text style={[styles.settingTitle, { color: colors.text }]}>Manual Cloud Backup</Text>
+                  <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                    {isCloudSyncing ? 'Backing up...' : 'Backup data to cloud now'}
+                  </Text>
+                </View>
+              </View>
+              {isCloudSyncing && <ActivityIndicator size="small" color={colors.primary} />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.settingItem, { borderBottomColor: colors.border }]}
+              onPress={handleCloudRestore}
+              disabled={isCloudSyncing}
+            >
+              <View style={styles.settingContent}>
+                <Ionicons name="cloud-download-outline" size={24} color={colors.text} />
+                <View style={styles.settingText}>
+                  <Text style={[styles.settingTitle, { color: colors.text }]}>Restore from Cloud</Text>
+                  <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                    {isCloudSyncing ? 'Restoring...' : 'Replace local data with cloud backup'}
+                  </Text>
+                </View>
+              </View>
+              {isCloudSyncing && <ActivityIndicator size="small" color={colors.primary} />}
+            </TouchableOpacity>
+
+            {cloudSyncStatus && (
+              <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
+                <View style={styles.settingContent}>
+                  <Ionicons name="information-circle-outline" size={24} color={colors.textSecondary} />
+                  <View style={styles.settingText}>
+                    <Text style={[styles.settingTitle, { color: colors.text }]}>Sync Status</Text>
+                    <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                      {cloudSyncStatus.enabled ? 'Enabled' : 'Disabled'} •
+                      {cloudSyncStatus.transactionCount || 0} transactions in cloud
+                      {cloudSyncStatus.lastSyncTime && (
+                        `\nLast sync: ${new Date(cloudSyncStatus.lastSyncTime).toLocaleDateString()}`
+                      )}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
 
           <TouchableOpacity
             style={[styles.settingRow, { backgroundColor: colors.card }]}
@@ -635,5 +815,32 @@ const styles = StyleSheet.create({
   restoreButtonText: {
     fontFamily: 'Inter-Bold',
     fontSize: 16,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  settingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  settingText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  settingTitle: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 16,
+    marginBottom: 2,
+  },
+  settingDescription: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    lineHeight: 18,
   },
 });
