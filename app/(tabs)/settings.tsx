@@ -51,7 +51,7 @@ export default function SettingsScreen() {
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<any>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
-  
+
   // Authentication modal state
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -449,7 +449,7 @@ export default function SettingsScreen() {
         {/* User Account Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Account</Text>
-          
+
           {user ? (
             // Logged in user info
             <>
@@ -462,7 +462,7 @@ export default function SettingsScreen() {
                   </View>
                 </View>
               </View>
-              
+
               <TouchableOpacity
                 style={[styles.settingRow, { backgroundColor: colors.card }]}
                 onPress={handleLogout}
@@ -520,144 +520,79 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Data Management</Text>
 
-          <View style={[styles.section, { backgroundColor: colors.card }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Cloud Backup</Text>
+          <TouchableOpacity
+            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            onPress={() => toggleCloudSync(!cloudSyncEnabled)}
+          >
+            <View style={styles.settingContent}>
+              <Ionicons name="cloud-outline" size={24} color={colors.text} />
+              <View style={styles.settingText}>
+                <Text style={[styles.settingTitle, { color: colors.text }]}>Auto Cloud Sync</Text>
+                <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                  Automatically backup data to cloud
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={cloudSyncEnabled}
+              onValueChange={toggleCloudSync}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={cloudSyncEnabled ? colors.background : colors.textSecondary}
+            />
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.settingItem, { borderBottomColor: colors.border }]}
-              onPress={() => toggleCloudSync(!cloudSyncEnabled)}
-            >
+          <TouchableOpacity
+            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            onPress={handleCloudBackup}
+            disabled={isCloudSyncing}
+          >
+            <View style={styles.settingContent}>
+              <Ionicons name="cloud-upload-outline" size={24} color={colors.text} />
+              <View style={styles.settingText}>
+                <Text style={[styles.settingTitle, { color: colors.text }]}>Manual Cloud Backup</Text>
+                <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                  {isCloudSyncing ? 'Backing up...' : 'Backup data to cloud now'}
+                </Text>
+              </View>
+            </View>
+            {isCloudSyncing && <ActivityIndicator size="small" color={colors.primary} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            onPress={handleCloudRestore}
+            disabled={isCloudSyncing}
+          >
+            <View style={styles.settingContent}>
+              <Ionicons name="cloud-download-outline" size={24} color={colors.text} />
+              <View style={styles.settingText}>
+                <Text style={[styles.settingTitle, { color: colors.text }]}>Restore from Cloud</Text>
+                <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                  {isCloudSyncing ? 'Restoring...' : 'Replace local data with cloud backup'}
+                </Text>
+              </View>
+            </View>
+            {isCloudSyncing && <ActivityIndicator size="small" color={colors.primary} />}
+          </TouchableOpacity>
+
+          {cloudSyncStatus && (
+            <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
               <View style={styles.settingContent}>
-                <Ionicons name="cloud-outline" size={24} color={colors.text} />
+                <Ionicons name="information-circle-outline" size={24} color={colors.textSecondary} />
                 <View style={styles.settingText}>
-                  <Text style={[styles.settingTitle, { color: colors.text }]}>Auto Cloud Sync</Text>
+                  <Text style={[styles.settingTitle, { color: colors.text }]}>Sync Status</Text>
                   <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
-                    Automatically backup data to cloud
+                    {cloudSyncStatus.enabled ? 'Enabled' : 'Disabled'} •
+                    {cloudSyncStatus.transactionCount || 0} transactions in cloud
+                    {cloudSyncStatus.lastSyncTime && (
+                      `\nLast sync: ${new Date(cloudSyncStatus.lastSyncTime).toLocaleDateString()}`
+                    )}
                   </Text>
                 </View>
               </View>
-              <Switch
-                value={cloudSyncEnabled}
-                onValueChange={toggleCloudSync}
-                trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor={cloudSyncEnabled ? colors.background : colors.textSecondary}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.settingItem, { borderBottomColor: colors.border }]}
-              onPress={handleCloudBackup}
-              disabled={isCloudSyncing}
-            >
-              <View style={styles.settingContent}>
-                <Ionicons name="cloud-upload-outline" size={24} color={colors.text} />
-                <View style={styles.settingText}>
-                  <Text style={[styles.settingTitle, { color: colors.text }]}>Manual Cloud Backup</Text>
-                  <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
-                    {isCloudSyncing ? 'Backing up...' : 'Backup data to cloud now'}
-                  </Text>
-                </View>
-              </View>
-              {isCloudSyncing && <ActivityIndicator size="small" color={colors.primary} />}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.settingItem, { borderBottomColor: colors.border }]}
-              onPress={handleCloudRestore}
-              disabled={isCloudSyncing}
-            >
-              <View style={styles.settingContent}>
-                <Ionicons name="cloud-download-outline" size={24} color={colors.text} />
-                <View style={styles.settingText}>
-                  <Text style={[styles.settingTitle, { color: colors.text }]}>Restore from Cloud</Text>
-                  <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
-                    {isCloudSyncing ? 'Restoring...' : 'Replace local data with cloud backup'}
-                  </Text>
-                </View>
-              </View>
-              {isCloudSyncing && <ActivityIndicator size="small" color={colors.primary} />}
-            </TouchableOpacity>
-
-            {cloudSyncStatus && (
-              <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
-                <View style={styles.settingContent}>
-                  <Ionicons name="information-circle-outline" size={24} color={colors.textSecondary} />
-                  <View style={styles.settingText}>
-                    <Text style={[styles.settingTitle, { color: colors.text }]}>Sync Status</Text>
-                    <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
-                      {cloudSyncStatus.enabled ? 'Enabled' : 'Disabled'} •
-                      {cloudSyncStatus.transactionCount || 0} transactions in cloud
-                      {cloudSyncStatus.lastSyncTime && (
-                        `\nLast sync: ${new Date(cloudSyncStatus.lastSyncTime).toLocaleDateString()}`
-                      )}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            )}
-          </View>
-
-          <TouchableOpacity
-            style={[styles.settingRow, { backgroundColor: colors.card }]}
-            onPress={handleExportData}
-            disabled={isExporting}
-          >
-            <View style={styles.settingLabelContainer}>
-              <Database size={20} color={colors.primary} style={styles.settingIcon} />
-              <Text style={[styles.settingLabel, { color: colors.text }]}>
-                {isExporting ? 'Exporting...' : 'Export Data'}
-              </Text>
             </View>
-          </TouchableOpacity>
+          )}
 
-          <TouchableOpacity
-            style={[styles.settingRow, { backgroundColor: colors.card }]}
-            onPress={handleBackup}
-            disabled={isBackingUp}
-          >
-            <View style={styles.settingLabelContainer}>
-              <Database size={20} color={colors.primary} style={styles.settingIcon} />
-              <Text style={[styles.settingLabel, { color: colors.text }]}>
-                {isBackingUp ? 'Creating Backup...' : 'Create Backup'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.settingRow, { backgroundColor: colors.card }]}
-            onPress={handleShowBackupList}
-          >
-            <View style={styles.settingLabelContainer}>
-              <RefreshCcw size={20} color={colors.primary} style={styles.settingIcon} />
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Restore Backup</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.settingRow, { backgroundColor: colors.card }]}
-            onPress={handleSyncData}
-            disabled={isSyncing}
-          >
-            <View style={styles.settingLabelContainer}>
-              <RefreshCcw size={20} color={colors.primary} style={styles.settingIcon} />
-              <Text style={[styles.settingLabel, { color: colors.text }]}>
-                {isSyncing ? 'Syncing...' : 'Sync with Cloud'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.settingRow, { backgroundColor: colors.card }]}
-            onPress={handleClearData}
-            disabled={isClearing}
-          >
-            <View style={styles.settingLabelContainer}>
-              <Trash2 size={20} color={colors.error} style={styles.settingIcon} />
-              <Text style={[styles.settingLabel, { color: colors.error }]}>
-                {isClearing ? 'Clearing...' : 'Clear All Data'}
-              </Text>
-            </View>
-          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -784,7 +719,7 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
-      
+
       {/* Authentication Modal */}
       <AuthModal
         visible={showAuthModal}

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Animated, 
 import { useDatabase } from '@/context/DatabaseContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
+import { useAuth } from '@/context/AuthContext';
 import TransactionCard from '@/components/TransactionCard';
 import CustomNotification from '@/components/CustomNotification';
 import { useNotification } from '@/hooks/useNotification';
@@ -21,6 +22,7 @@ export default function HomeScreen() {
   const { getRecentTransactions, getBalance, manualBackup } = useDatabase();
   const { colors } = useTheme();
   const { selectedCurrency, setSelectedCurrency, currencies, isOnboardingComplete, completeOnboarding } = useCurrency();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [balance, setBalance] = useState({ income: 0, expenses: 0 });
@@ -150,6 +152,16 @@ export default function HomeScreen() {
       loadData();
     }, [loadData])
   );
+
+  // Clear data when user logs out
+  useEffect(() => {
+    if (user === null) {
+      setTransactions([]);
+      setBalance({ income: 0, expenses: 0 });
+      setLastBackupDate(null);
+      setShowBackupReminder(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     // Show onboarding if not completed

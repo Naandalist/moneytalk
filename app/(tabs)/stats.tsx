@@ -5,6 +5,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '@/context/DatabaseContext';
 import { useCurrency } from '@/context/CurrencyContext';
+import { useAuth } from '@/context/AuthContext';
 import { PieChart, LineChart } from 'react-native-chart-kit';
 import { Dimensions } from 'react-native';
 import TransactionList from '@/components/TransactionList';
@@ -31,6 +32,7 @@ export default function StatsScreen() {
   const insets = useSafeAreaInsets();
   const { getTransactionsByPeriod, getTransactionsByCategory, saveAISuggestion, getAISuggestion, clearAISuggestion, getRemainingRefreshes, incrementDailyRefreshCount } = useDatabase();
   const { selectedCurrency } = useCurrency();
+  const { user } = useAuth();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categoryData, setCategoryData] = useState<PieChartData[]>([]);
@@ -49,6 +51,21 @@ export default function StatsScreen() {
     loadSuggestion();
     loadRemainingRefreshes();
   }, [period]);
+
+  // Clear data when user logs out
+  useEffect(() => {
+    if (!user) {
+      // Clear all state when user logs out
+      setTransactions([]);
+      setCategoryData([]);
+      setTimelineData({
+        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        datasets: [{ data: [0, 0, 0, 0, 0, 0, 0] }]
+      });
+      setSuggestion('');
+      setRemainingRefreshes(3);
+    }
+  }, [user]);
 
   // Add focus effect to reload data when screen comes into focus
   useFocusEffect(
