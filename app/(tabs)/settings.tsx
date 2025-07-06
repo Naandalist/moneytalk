@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, Alert, Modal, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Moon, Sun, Trash2, RefreshCcw, Database, Info } from 'lucide-react-native';
+import { Moon, Sun, Trash2, RefreshCcw, Database, Info, LogOut, User, Mail } from 'lucide-react-native';
 import { useDatabase } from '@/context/DatabaseContext';
 import { useNotification } from '@/hooks/useNotification';
 import CustomNotification from '@/components/CustomNotification';
@@ -10,6 +10,8 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { convertFromUTC, getUserTimezone } from '@/utils/timezoneUtils';
 import Constants from 'expo-constants';
+import { useAuth } from '@/context/AuthContext';
+import AuthModal from '@/components/AuthModal';
 
 import { NativeAdCard } from '@/components/NativeAdCard';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 export default function SettingsScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
+  const { user, session, signOut, loading: authLoading } = useAuth();
   const {
     clearAllTransactions,
     getAllTransactions,
@@ -48,6 +51,10 @@ export default function SettingsScreen() {
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<any>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  
+  // Authentication modal state
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Add these methods
   const loadCloudSyncStatus = async () => {
@@ -131,6 +138,49 @@ export default function SettingsScreen() {
   useEffect(() => {
     loadCloudSyncStatus();
   }, []);
+
+  /**
+   * Handle user logout with confirmation
+   */
+  const handleLogout = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            setIsLoggingOut(true);
+            try {
+              await signOut();
+              showSuccess('Signed Out', 'You have been successfully signed out.');
+            } catch (error) {
+              showError('Sign Out Failed', 'Failed to sign out. Please try again.');
+            } finally {
+              setIsLoggingOut(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  /**
+   * Handle successful authentication
+   */
+  const handleAuthSuccess = () => {
+    setShowAuthModal(false);
+    showSuccess('Welcome!', 'You have been successfully signed in.');
+  };
+
+  /**
+   * Show login/register modal
+   */
+  const handleShowAuth = () => {
+    setShowAuthModal(true);
+  };
 
   const handleClearData = () => {
     showWarning(
@@ -396,6 +446,55 @@ export default function SettingsScreen() {
       <Text style={[styles.header, { color: colors.text }]}>Settings</Text>
 
       <ScrollView style={styles.scrollView}>
+        {/* User Account Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Account</Text>
+          
+          {user ? (
+            // Logged in user info
+            <>
+              <View style={[styles.settingRow, { backgroundColor: colors.card }]}>
+                <View style={styles.settingLabelContainer}>
+                  <User size={20} color={colors.primary} style={styles.settingIcon} />
+                  <View style={styles.userInfoContainer}>
+                    <Text style={[styles.settingLabel, { color: colors.text }]}>Signed in as</Text>
+                    <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{user.email}</Text>
+                  </View>
+                </View>
+              </View>
+              
+              <TouchableOpacity
+                style={[styles.settingRow, { backgroundColor: colors.card }]}
+                onPress={handleLogout}
+                disabled={isLoggingOut}
+              >
+                <View style={styles.settingLabelContainer}>
+                  <LogOut size={20} color={colors.error} style={styles.settingIcon} />
+                  <Text style={[styles.settingLabel, { color: colors.error }]}>
+                    {isLoggingOut ? 'Signing out...' : 'Sign Out'}
+                  </Text>
+                </View>
+                {isLoggingOut && <ActivityIndicator size="small" color={colors.error} />}
+              </TouchableOpacity>
+            </>
+          ) : (
+            // Not logged in - show login/register button
+            <TouchableOpacity
+              style={[styles.settingRow, { backgroundColor: colors.card }]}
+              onPress={handleShowAuth}
+              disabled={authLoading}
+            >
+              <View style={styles.settingLabelContainer}>
+                <Mail size={20} color={colors.primary} style={styles.settingIcon} />
+                <Text style={[styles.settingLabel, { color: colors.text }]}>
+                  {authLoading ? 'Loading...' : 'Sign In / Register'}
+                </Text>
+              </View>
+              {authLoading && <ActivityIndicator size="small" color={colors.primary} />}
+            </TouchableOpacity>
+          )}
+        </View>
+
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Appearance</Text>
 
@@ -685,6 +784,13 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+      
+      {/* Authentication Modal */}
+      <AuthModal
+        visible={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={handleAuthSuccess}
+      />
     </View>
   );
 }
@@ -731,6 +837,14 @@ const styles = StyleSheet.create({
   settingLabel: {
     fontFamily: 'Inter-Medium',
     fontSize: 16,
+  },
+  userInfoContainer: {
+    flex: 1,
+  },
+  userEmail: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    marginTop: 2,
   },
   // Modal styles
   modalContainer: {

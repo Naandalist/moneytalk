@@ -3,12 +3,15 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Keyboa
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
+import { useAuth } from '@/context/AuthContext';
 import { Transaction } from '@/types/transaction';
 import { Check, X, Save, Calendar, Clock } from 'lucide-react-native';
 import { categoryList, getCategoryIcon } from '@/utils/categories';
 import { formatCurrency } from 'react-native-format-currency';
 import { NativeAdComponent } from './NativeAdComponent';
 import { convertToUTC, convertFromUTC, getUserTimezone } from '@/utils/timezoneUtils';
+import AuthModal from './AuthModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type TransactionConfirmationProps = {
   transaction: Transaction;
@@ -23,10 +26,13 @@ export default function TransactionConfirmation({
 }: TransactionConfirmationProps) {
   const { colors } = useTheme();
   const { selectedCurrency } = useCurrency();
+  const { user, isFirstTimeUser, setIsFirstTimeUser } = useAuth();
   const [editedTransaction, setEditedTransaction] = useState<Transaction>({ ...transaction });
   const [displayValue, setDisplayValue] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingTransaction, setPendingTransaction] = useState<Transaction | null>(null);
 
   useEffect(() => {
     // Initialize display value with formatted currency
@@ -84,16 +90,51 @@ export default function TransactionConfirmation({
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Ensure amount is positive for income and negative for expense
     const finalAmount = editedTransaction.type === 'expense'
       ? -Math.abs(editedTransaction.amount)
       : Math.abs(editedTransaction.amount);
 
-    onSave({
+    const transactionToSave = {
       ...editedTransaction,
       amount: finalAmount,
-    });
+    };
+
+    // Check if user is authenticated and if this is their first transaction
+    if (isFirstTimeUser && !user) {
+      // Store the transaction to save after authentication
+      setPendingTransaction(transactionToSave);
+      setShowAuthModal(true);
+      return;
+    }
+
+    // Mark that user has saved transactions
+    if (isFirstTimeUser) {
+      await AsyncStorage.setItem('has_saved_transactions', 'true');
+      setIsFirstTimeUser(false);
+    }
+
+    onSave(transactionToSave);
+  };
+
+  const handleAuthSuccess = async () => {
+    setShowAuthModal(false);
+    
+    // Mark that user has saved transactions
+    await AsyncStorage.setItem('has_saved_transactions', 'true');
+    setIsFirstTimeUser(false);
+    
+    // Save the pending transaction
+    if (pendingTransaction) {
+      onSave(pendingTransaction);
+      setPendingTransaction(null);
+    }
+  };
+
+  const handleAuthCancel = () => {
+    setShowAuthModal(false);
+    setPendingTransaction(null);
   };
 
   const updateDate = (text: string) => {
@@ -417,6 +458,13 @@ export default function TransactionConfirmation({
           <Text style={[styles.buttonText, { color: colors.white }]}>Save</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Authentication Modal */}
+      <AuthModal
+        visible={showAuthModal}
+        onClose={handleAuthCancel}
+        onSuccess={handleAuthSuccess}
+      />
     </KeyboardAvoidingView>
   );
 }

@@ -6,11 +6,15 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { DatabaseProvider } from '@/context/DatabaseContext';
+import { AuthProvider } from '@/context/AuthContext';
+
 import * as SplashScreen from 'expo-splash-screen';
 import mobileAds from 'react-native-google-mobile-ads';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import { appOpenAdManager } from '@/utils/appOpenAd';
 import { AppState, AppStateStatus } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Keep the splash screen visible until we're ready
 SplashScreen.preventAutoHideAsync();
@@ -83,17 +87,23 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider>
-      <DatabaseProvider>
-        <CurrencyProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="transaction-detail" options={{ headerShown: false }} />
-            <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
-          </Stack>
-          <StatusBar style="auto" />
-        </CurrencyProvider>
-      </DatabaseProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <DatabaseProvider>
+              <CurrencyProvider>
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen name="transaction-detail" options={{ headerShown: false }} />
+                  <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
+                </Stack>
+                <StatusBar style="auto" />
+              </CurrencyProvider>
+            </DatabaseProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

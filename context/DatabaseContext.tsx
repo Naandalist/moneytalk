@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import * as SQLite from 'expo-sqlite';
-import * as FileSystem from 'expo-file-system';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction } from '@/types/transaction';
 import { getCurrentDateInTimezone, getUserTimezone } from '@/utils/timezoneUtils';
-import { cloudBackup, CloudBackupService } from '@/utils/cloudBackup';
+import { supabase } from '../utils/supabase';
+import { CloudBackupService } from '../utils/cloudBackup';
+import { useAuth } from './AuthContext';
+import * as Crypto from 'expo-crypto';
 
 type DatabaseContextType = {
   isReady: boolean;
@@ -63,363 +65,187 @@ const DatabaseContext = createContext<DatabaseContextType>({
 
 export const useDatabase = () => useContext(DatabaseContext);
 
-// Database file paths in document directory
-const DB_NAME = 'transactions.db';
-const SETTINGS_DB_NAME = 'settings.db';
-const DB_PATH = FileSystem.documentDirectory + DB_NAME;
-const SETTINGS_DB_PATH = FileSystem.documentDirectory + SETTINGS_DB_NAME;
-
-let db: SQLite.SQLiteDatabase;
-let settingsDb: SQLite.SQLiteDatabase;
+// Global instances
+let cloudBackupService: CloudBackupService | null = null;
 
 /**
- * Migrate existing databases from default location to document directory
+ * Initialize Supabase connection and cloud backup service
  */
-const migrateExistingDatabases = async (): Promise<void> => {
+const initSupabase = async (setIsReady: (ready: boolean) => void) => {
   try {
-    console.log('Checking for existing databases to migrate...');
-
-    // Check if databases already exist in document directory
-    const newDbExists = await FileSystem.getInfoAsync(DB_PATH);
-    const newSettingsDbExists = await FileSystem.getInfoAsync(SETTINGS_DB_PATH);
-
-    if (newDbExists.exists && newSettingsDbExists.exists) {
-      console.log('Databases already exist in document directory, skipping migration');
-      return;
+    console.log('Initializing Supabase connection...');
+    
+    // Initialize cloud backup service
+    cloudBackupService = new CloudBackupService();
+    
+    // Test Supabase connection
+    const { data, error } = await supabase.from('transactions').select('count', { count: 'exact', head: true });
+    
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "relation does not exist" which is fine for first time
+      console.error('Supabase connection test failed:', error);
+    } else {
+      console.log('Supabase connection successful');
     }
-
-    // Try to open old databases to check if they exist and have data
-    try {
-      const oldDb = await SQLite.openDatabaseAsync('transactions.db');
-      const oldSettingsDb = await SQLite.openDatabaseAsync('settings.db');
-
-      // Check if old databases have data
-      const transactionCount = await oldDb.getFirstAsync(
-        'SELECT COUNT(*) as count FROM transactions'
-      ) as { count: number } | null;
-
-      const suggestionCount = await oldSettingsDb.getFirstAsync(
-        'SELECT COUNT(*) as count FROM ai_suggestions'
-      ) as { count: number } | null;
-
-      if ((transactionCount?.count || 0) > 0 || (suggestionCount?.count || 0) > 0) {
-        console.log(`Found ${transactionCount?.count || 0} transactions and ${suggestionCount?.count || 0} AI suggestions to migrate`);
-
-        // Export data from old databases
-        const transactions = await oldDb.getAllAsync('SELECT * FROM transactions') as Transaction[];
-        const aiSuggestions = await oldSettingsDb.getAllAsync('SELECT * FROM ai_suggestions');
-        const refreshCounts = await oldSettingsDb.getAllAsync('SELECT * FROM daily_refresh_count');
-        const settings = await oldSettingsDb.getAllAsync('SELECT * FROM settings');
-
-        // Close old databases
-        await oldDb.closeAsync();
-        await oldSettingsDb.closeAsync();
-
-        // Create new databases in document directory
-        const newDb = await SQLite.openDatabaseAsync(DB_PATH);
-        const newSettingsDb = await SQLite.openDatabaseAsync(SETTINGS_DB_PATH);
-
-        // Create tables in new databases
-        await createTables(newDb, newSettingsDb);
-
-        // Migrate data
-        console.log('Migrating transaction data...');
-        for (const transaction of transactions) {
-          await newDb.runAsync(
-            'INSERT INTO transactions (id, amount, category, type, description, date) VALUES (?, ?, ?, ?, ?, ?)',
-            [
-              transaction.id || 0,
-              transaction.amount || 0,
-              transaction.category || '',
-              transaction.type || '',
-              transaction.description || '',
-              transaction.date || ''
-            ]
-          );
-        }
-
-        console.log('Migrating AI suggestions...');
-        for (const suggestion of aiSuggestions) {
-          const suggestionRecord = suggestion as any;
-          await newSettingsDb.runAsync(
-            'INSERT INTO ai_suggestions (id, user_id, suggestion, timestamp, created_at) VALUES (?, ?, ?, ?, ?)',
-            [suggestionRecord.id, suggestionRecord.user_id, suggestionRecord.suggestion, suggestionRecord.timestamp, suggestionRecord.created_at]
-          );
-        }
-
-        console.log('Migrating refresh counts...');
-        for (const count of refreshCounts) {
-          const countRecord = count as any;
-          await newSettingsDb.runAsync(
-            'INSERT INTO daily_refresh_count (id, user_id, date, count, created_at) VALUES (?, ?, ?, ?, ?)',
-            [countRecord.id, countRecord.user_id, countRecord.date, countRecord.count, countRecord.created_at]
-          );
-        }
-
-        console.log('Migrating settings...');
-        for (const setting of settings) {
-          const settingRecord = setting as any;
-          await newSettingsDb.runAsync(
-            'INSERT INTO settings (key, value) VALUES (?, ?)',
-            [settingRecord.key, settingRecord.value]
-          );
-        }
-
-        await newDb.closeAsync();
-        await newSettingsDb.closeAsync();
-
-        console.log('Database migration completed successfully');
-      } else {
-        console.log('No data found in old databases, skipping migration');
-        await oldDb.closeAsync();
-        await oldSettingsDb.closeAsync();
-      }
-    } catch (oldDbError) {
-      console.log('No existing databases found or error accessing them:', oldDbError);
-    }
-  } catch (error) {
-    console.error('Database migration error:', error);
-  }
-};
-
-/**
- * Create database tables
- */
-const createTables = async (database: SQLite.SQLiteDatabase, settingsDatabase: SQLite.SQLiteDatabase): Promise<void> => {
-  await database.execAsync(`
-    CREATE TABLE IF NOT EXISTS transactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      amount REAL NOT NULL,
-      category TEXT NOT NULL,
-      type TEXT NOT NULL,
-      description TEXT,
-      date TEXT NOT NULL
-    )
-  `);
-
-  await settingsDatabase.execAsync(`
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    )
-  `);
-
-  await settingsDatabase.execAsync(`
-    CREATE TABLE IF NOT EXISTS ai_suggestions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id TEXT NOT NULL DEFAULT 'default_user',
-      suggestion TEXT NOT NULL,
-      timestamp INTEGER NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  await settingsDatabase.execAsync(`
-    CREATE TABLE IF NOT EXISTS daily_refresh_count (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id TEXT NOT NULL DEFAULT 'default_user',
-      date TEXT NOT NULL,
-      count INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-};
-
-/**
- * Initialize database with persistent file system location and migration
- */
-const initDatabase = async (setIsReady: (ready: boolean) => void) => {
-  try {
-    console.log('Initializing database with FileSystem.documentDirectory...');
-    console.log('Document directory:', FileSystem.documentDirectory);
-
-    // Ensure the document directory exists
-    const dirInfo = await FileSystem.getInfoAsync(FileSystem.documentDirectory!);
-    if (!dirInfo.exists) {
-      await FileSystem.makeDirectoryAsync(FileSystem.documentDirectory!, { intermediates: true });
-    }
-
-    // Migrate existing databases if needed
-    await migrateExistingDatabases();
-
-    // Open databases with explicit file paths
-    console.log('Opening databases at:');
-    console.log('Main DB:', DB_PATH);
-    console.log('Settings DB:', SETTINGS_DB_PATH);
-
-    db = await SQLite.openDatabaseAsync(DB_PATH);
-    settingsDb = await SQLite.openDatabaseAsync(SETTINGS_DB_PATH);
-
-    // Create tables if they don't exist
-    await createTables(db, settingsDb);
-
-    // Verify database integrity
-    const transactionCount = await db.getFirstAsync(
-      'SELECT COUNT(*) as count FROM transactions'
-    ) as { count: number } | null;
-
-    console.log(`Database initialized successfully. Found ${transactionCount?.count || 0} existing transactions.`);
-    console.log('Database files located at:');
-    console.log('- Transactions:', DB_PATH);
-    console.log('- Settings:', SETTINGS_DB_PATH);
-
+    
     setIsReady(true);
   } catch (error) {
-    console.error('Database initialization error:', error);
+    console.error('Supabase initialization failed:', error);
     setIsReady(false);
-
-    // Try to recover by creating new databases
-    try {
-      console.log('Attempting database recovery...');
-      db = await SQLite.openDatabaseAsync(DB_PATH);
-      settingsDb = await SQLite.openDatabaseAsync(SETTINGS_DB_PATH);
-      await createTables(db, settingsDb);
-      console.log('Database recovery successful');
-      setIsReady(true);
-    } catch (recoveryError) {
-      console.error('Database recovery failed:', recoveryError);
-      setIsReady(false);
-    }
   }
 };
 
 export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isReady, setIsReady] = useState(false);
   const [cloudBackupInitialized, setCloudBackupInitialized] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
-    initDatabase(setIsReady);
+    initSupabase(setIsReady);
   }, []);
 
   useEffect(() => {
-    // Initialize cloud backup when database is ready
-    if (isReady && !cloudBackupInitialized) {
+    // Initialize cloud backup when database is ready and user is authenticated
+    if (isReady && !cloudBackupInitialized && user) {
       initializeCloudBackup();
     }
-  }, [isReady, cloudBackupInitialized]);
+  }, [isReady, cloudBackupInitialized, user]);
 
   /**
-   * Initialize cloud backup service
+   * Get user ID for database operations (authenticated user ID or device UUID)
+   */
+  const getUserId = async (): Promise<string> => {
+    if (user?.id) {
+      return user.id;
+    }
+    
+    // For anonymous users, generate or get device UUID
+    try {
+      let deviceUserId = await AsyncStorage.getItem('device_user_id');
+      
+      if (!deviceUserId || deviceUserId.startsWith('device_')) {
+        // Generate a proper UUID for database compatibility
+        deviceUserId = await Crypto.randomUUID();
+        await AsyncStorage.setItem('device_user_id', deviceUserId);
+        console.log('Generated new device UUID for anonymous user:', deviceUserId);
+      }
+      
+      return deviceUserId;
+    } catch (error) {
+      console.error('Error generating device user ID:', error);
+      // Fallback to a simple UUID
+      const fallbackId = await Crypto.randomUUID();
+      await AsyncStorage.setItem('device_user_id', fallbackId);
+      return fallbackId;
+    }
+  };
+
+  /**
+   * Initialize cloud backup service (simplified for Supabase)
    */
   const initializeCloudBackup = async () => {
     try {
-      const success = await cloudBackup.initialize();
-      setCloudBackupInitialized(success);
-
-      if (success) {
-        console.log('Cloud backup initialized successfully');
-        // Perform initial sync if enabled
-        const autoSyncEnabled = await isCloudBackupEnabled();
-        if (autoSyncEnabled) {
-          const transactions = await getAllTransactions();
-          await cloudBackup.autoSync(transactions);
-        }
+      console.log('Initializing cloud backup with Supabase...');
+      console.log('User authenticated:', !!user);
+      console.log('User ID:', user?.id);
+      
+      if (!cloudBackupService) {
+        cloudBackupService = new CloudBackupService();
+      }
+      
+      // Since we're using Supabase directly, cloud backup is always available when user is authenticated
+      if (user?.id) {
+        await cloudBackupService.initialize();
+        setCloudBackupInitialized(true);
+        console.log('Cloud backup initialized successfully with Supabase');
+      } else {
+        console.log('No authenticated user, cloud backup not available');
+        setCloudBackupInitialized(false);
       }
     } catch (error) {
       console.error('Failed to initialize cloud backup:', error);
+      setCloudBackupInitialized(false);
     }
   };
 
   const addTransaction = async (transaction: Transaction): Promise<number> => {
     try {
-      const result = await db.runAsync(
-        `INSERT INTO transactions (amount, category, type, description, date) 
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          transaction.amount,
-          transaction.category,
-          transaction.type,
-          transaction.description || '',
-          transaction.date || new Date().toISOString()
-        ]
-      );
+      const userId = await getUserId();
+      
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert({
+          amount: transaction.amount,
+          category: transaction.category,
+          type: transaction.type,
+          description: transaction.description || '',
+          date: transaction.date || new Date().toISOString(),
+          user_id: userId
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error adding transaction to Supabase:', error);
+        throw error;
+      }
 
       // Auto-sync to cloud if enabled
       const autoSyncEnabled = await isCloudBackupEnabled();
-      if (autoSyncEnabled && cloudBackupInitialized) {
+      if (autoSyncEnabled && cloudBackupInitialized && cloudBackupService) {
         const allTransactions = await getAllTransactions();
-        cloudBackup.autoSync(allTransactions).catch(console.error);
+        cloudBackupService.autoSync(allTransactions).catch(console.error);
       }
 
-      return result.lastInsertRowId || 0;
+      return data.id || 0;
     } catch (error) {
       throw error;
     }
   };
 
   /**
-   * Manual cloud backup of all data
+   * Manual cloud backup of all data (simplified for Supabase - data is already in cloud)
    */
   const cloudBackupData = async (): Promise<{ success: boolean; message: string }> => {
     try {
-      if (!cloudBackupInitialized) {
-        return { success: false, message: 'Cloud backup not initialized' };
+      // Check if user is authenticated
+      if (!user) {
+        return { success: false, message: 'Please sign in to use cloud backup' };
       }
 
+      // With Supabase, data is already in the cloud, so this is just a sync verification
       const transactions = await getAllTransactions();
-      const result = await cloudBackup.backupTransactions(transactions);
-
-      // Also backup AI suggestions
-      const aiSuggestion = await getAISuggestion();
-      if (aiSuggestion) {
-        await cloudBackup.backupAISuggestions(aiSuggestion.suggestion, aiSuggestion.timestamp);
-      }
-
-      return result;
+      console.log(`Verified ${transactions.length} transactions in cloud storage`);
+      
+      return { success: true, message: `Data verified in cloud! Found ${transactions.length} transactions.` };
     } catch (error) {
-      console.error('Error during cloud backup:', error);
+      console.error('Error during cloud backup verification:', error);
       return {
         success: false,
-        message: 'Cloud backup failed: ' + (error as Error).message,
+        message: 'Cloud backup verification failed: ' + (error as Error).message,
       };
     }
   };
 
   /**
-   * Restore data from cloud backup
+   * Restore data from cloud backup (simplified for Supabase - data is already synced)
    */
   const cloudRestoreData = async (): Promise<{ success: boolean; message: string }> => {
     try {
-      if (!cloudBackupInitialized) {
-        return { success: false, message: 'Cloud backup not initialized' };
+      // Check if user is authenticated
+      if (!user) {
+        return { success: false, message: 'Please sign in to use cloud restore' };
       }
 
-      // Restore transactions
-      const transactionResult = await cloudBackup.restoreTransactions();
-
-      if (transactionResult.success && transactionResult.transactions.length > 0) {
-        // Clear existing transactions
-        await db.runAsync('DELETE FROM transactions');
-
-        // Insert restored transactions
-        for (const transaction of transactionResult.transactions) {
-          await db.runAsync(
-            'INSERT INTO transactions (id, amount, category, type, description, date) VALUES (?, ?, ?, ?, ?, ?)',
-            [
-              transaction.id || 0,
-              transaction.amount,
-              transaction.category,
-              transaction.type,
-              transaction.description || '',
-              transaction.date
-            ]
-          );
-        }
-      }
-
-      // Restore AI suggestions
-      const aiSuggestion = await cloudBackup.restoreAISuggestions();
-      if (aiSuggestion) {
-        await settingsDb.runAsync(
-          `INSERT OR REPLACE INTO ai_suggestions (user_id, suggestion, timestamp, created_at) 
-           VALUES ('default_user', ?, ?, ?)`,
-          [aiSuggestion.suggestion, aiSuggestion.timestamp, new Date().toISOString()]
-        );
-      }
-
+      // With Supabase, data is already synced from the cloud
+      // This function now just refreshes the local view of cloud data
+      const transactions = await getAllTransactions();
+      const aiSuggestion = await getAISuggestion();
+      
+      console.log(`Refreshed ${transactions.length} transactions from cloud`);
+      
       return {
         success: true,
-        message: `Successfully restored ${transactionResult.transactions.length} transactions`,
+        message: `Successfully refreshed ${transactions.length} transactions from cloud`,
       };
     } catch (error) {
       console.error('Error during cloud restore:', error);
@@ -435,17 +261,17 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
    */
   const getCloudSyncStatus = async (): Promise<any> => {
     try {
-      if (!cloudBackupInitialized) {
+      if (!cloudBackupInitialized || !cloudBackupService) {
         return { enabled: false, message: 'Cloud backup not initialized' };
       }
 
-      const status = await cloudBackup.getSyncStatus();
+      const status = await cloudBackupService.getSyncStatus();
       const isEnabled = await isCloudBackupEnabled();
 
       return {
         enabled: isEnabled,
-        authenticated: cloudBackup.isAuthenticated(),
-        userId: cloudBackup.getUserId(),
+        authenticated: cloudBackupService.isAuthenticated(),
+        userId: cloudBackupService.getUserId(),
         ...status,
       };
     } catch (error) {
@@ -459,10 +285,19 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
    */
   const enableAutoSync = async (enabled: boolean): Promise<void> => {
     try {
-      await settingsDb.runAsync(
-        `INSERT OR REPLACE INTO settings (key, value) VALUES ('auto_sync_enabled', ?)`,
-        [enabled ? 'true' : 'false']
-      );
+      const userId = await getUserId();
+      
+      const { error } = await supabase
+        .from('settings')
+        .upsert({
+          key: 'auto_sync_enabled',
+          value: enabled ? 'true' : 'false',
+          user_id: userId
+        });
+
+      if (error) {
+        console.error('Error setting auto sync preference in Supabase:', error);
+      }
     } catch (error) {
       console.error('Error setting auto sync preference:', error);
     }
@@ -473,11 +308,21 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
    */
   const isCloudBackupEnabled = async (): Promise<boolean> => {
     try {
-      const result = await settingsDb.getFirstAsync(
-        `SELECT value FROM settings WHERE key = 'auto_sync_enabled'`
-      ) as { value: string } | null;
+      const userId = await getUserId();
+      
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'auto_sync_enabled')
+        .eq('user_id', userId)
+        .single();
 
-      return result?.value === 'true';
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking auto sync preference in Supabase:', error);
+        return false;
+      }
+
+      return data?.value === 'true';
     } catch (error) {
       console.error('Error checking auto sync preference:', error);
       return false;
@@ -486,149 +331,265 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const getRecentTransactions = async (limit: number): Promise<Transaction[]> => {
     try {
-      const result = await db.getAllAsync(
-        `SELECT * FROM transactions ORDER BY date DESC LIMIT ?`,
-        [limit]
-      );
-      return result as Transaction[];
+      const userId = await getUserId();
+      
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        console.error('Error getting recent transactions from Supabase:', error);
+        throw error;
+      }
+
+      return data || [];
     } catch (error) {
+      console.error('Error getting recent transactions:', error);
       throw error;
     }
   };
 
   const getAllTransactions = async (): Promise<Transaction[]> => {
     try {
-      const result = await db.getAllAsync(
-        `SELECT * FROM transactions ORDER BY date DESC`
-      );
-      return result as Transaction[];
+      const userId = await getUserId();
+      
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false });
+
+      if (error) {
+        console.error('Error getting transactions from Supabase:', error);
+        throw error;
+      }
+
+      return data || [];
     } catch (error) {
+      console.error('Error getting transactions:', error);
       throw error;
     }
   };
 
   const getTransactionsByPeriod = async (period: string): Promise<Transaction[]> => {
     try {
-      let dateFilter = '';
       // Use current time in user's timezone, then convert to UTC for database comparison
       const now = new Date(getCurrentDateInTimezone());
+      let dateThreshold: string;
 
       if (period === 'week') {
         const weekAgo = new Date(now);
         weekAgo.setDate(now.getDate() - 7);
-        // Convert to UTC for database comparison (dates in DB are stored in UTC)
-        dateFilter = `WHERE date >= '${weekAgo.toISOString()}'`;
+        dateThreshold = weekAgo.toISOString();
       } else if (period === 'month') {
         const monthAgo = new Date(now);
         monthAgo.setMonth(now.getMonth() - 1);
-        dateFilter = `WHERE date >= '${monthAgo.toISOString()}'`;
+        dateThreshold = monthAgo.toISOString();
       } else if (period === 'year') {
         const yearAgo = new Date(now);
         yearAgo.setFullYear(now.getFullYear() - 1);
-        dateFilter = `WHERE date >= '${yearAgo.toISOString()}'`;
+        dateThreshold = yearAgo.toISOString();
+      } else {
+        // If no specific period, return all transactions
+        return await getAllTransactions();
       }
 
-      const result = await db.getAllAsync(
-        `SELECT * FROM transactions ${dateFilter} ORDER BY date DESC`
-      );
+      const userId = await getUserId();
+      
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('date', dateThreshold)
+        .order('date', { ascending: false });
 
-      return result as Transaction[];
+      if (error) {
+        console.error('Error getting transactions by period from Supabase:', error);
+        throw error;
+      }
+
+      return data || [];
     } catch (error) {
+      console.error('Error getting transactions by period:', error);
       throw error;
     }
   };
 
   const getTransactionsByCategory = async (period: string): Promise<any[]> => {
     try {
-      let dateFilter = '';
       // Use current time in user's timezone, then convert to UTC for database comparison
       const now = new Date(getCurrentDateInTimezone());
+      let dateThreshold: string | null = null;
 
       if (period === 'week') {
         const weekAgo = new Date(now);
         weekAgo.setDate(now.getDate() - 7);
-        // Convert to UTC for database comparison (dates in DB are stored in UTC)
-        dateFilter = `AND date >= '${weekAgo.toISOString()}'`;
+        dateThreshold = weekAgo.toISOString();
       } else if (period === 'month') {
         const monthAgo = new Date(now);
         monthAgo.setMonth(now.getMonth() - 1);
-        dateFilter = `AND date >= '${monthAgo.toISOString()}'`;
+        dateThreshold = monthAgo.toISOString();
       } else if (period === 'year') {
         const yearAgo = new Date(now);
         yearAgo.setFullYear(now.getFullYear() - 1);
-        dateFilter = `AND date >= '${yearAgo.toISOString()}'`;
+        dateThreshold = yearAgo.toISOString();
       }
 
-      const result = await db.getAllAsync(
-        `SELECT category, SUM(amount) as amount 
-         FROM transactions 
-         WHERE type = 'expense' ${dateFilter}
-         GROUP BY category
-         ORDER BY ABS(SUM(amount)) DESC`
-      );
+      const userId = await getUserId();
+      
+      // Get transactions from Supabase
+      let query = supabase
+        .from('transactions')
+        .select('category, amount')
+        .eq('user_id', userId)
+        .eq('type', 'expense');
 
-      return result as any[];
+      if (dateThreshold) {
+        query = query.gte('date', dateThreshold);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error getting transactions by category from Supabase:', error);
+        throw error;
+      }
+
+      // Group by category and calculate totals
+      const categoryMap = new Map();
+      (data || []).forEach((transaction: any) => {
+        const category = transaction.category;
+        if (categoryMap.has(category)) {
+          const existing = categoryMap.get(category);
+          categoryMap.set(category, {
+            category,
+            amount: existing.amount + Math.abs(transaction.amount)
+          });
+        } else {
+          categoryMap.set(category, {
+            category,
+            amount: Math.abs(transaction.amount)
+          });
+        }
+      });
+
+      // Convert to array and sort by amount
+      return Array.from(categoryMap.values()).sort((a, b) => b.amount - a.amount);
     } catch (error) {
+      console.error('Error getting transactions by category:', error);
       throw error;
     }
   };
 
   const getBalance = async (): Promise<{ income: number, expenses: number }> => {
     try {
-      const result = await db.getFirstAsync(
-        `SELECT 
-          SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
-          SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expenses
-         FROM transactions`
-      ) as { income: number | null, expenses: number | null } | null;
+      const userId = await getUserId();
+      
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('type, amount')
+        .eq('user_id', userId);
 
-      if (result) {
-        return {
-          income: result.income || 0,
-          expenses: Math.abs(result.expenses || 0) // Apply ABS here instead of in SQL
-        };
-      } else {
-        return { income: 0, expenses: 0 };
+      if (error) {
+        console.error('Error getting balance from Supabase:', error);
+        throw error;
       }
+
+      let income = 0;
+      let expenses = 0;
+
+      (data || []).forEach((transaction: any) => {
+        if (transaction.type === 'income') {
+          income += transaction.amount;
+        } else if (transaction.type === 'expense') {
+          expenses += Math.abs(transaction.amount);
+        }
+      });
+
+      return { income, expenses };
     } catch (error) {
+      console.error('Error calculating balance:', error);
       throw error;
     }
   };
 
   const clearAllTransactions = async (): Promise<void> => {
     try {
-      await db.runAsync('DELETE FROM transactions');
-      await settingsDb.runAsync('DELETE FROM settings');
+      const userId = await getUserId();
+      
+      const { error: transactionsError } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('user_id', userId);
+
+      if (transactionsError) {
+        console.error('Error clearing transactions from Supabase:', transactionsError);
+        throw transactionsError;
+      }
+
+      const { error: settingsError } = await supabase
+        .from('settings')
+        .delete()
+        .eq('user_id', userId);
+
+      if (settingsError) {
+        console.error('Error clearing settings from Supabase:', settingsError);
+        throw settingsError;
+      }
     } catch (error) {
+      console.error('Error clearing all data:', error);
       throw error;
     }
   };
 
   const deleteTransaction = async (id: number): Promise<void> => {
     try {
-      await db.runAsync('DELETE FROM transactions WHERE id = ?', [id]);
+      const userId = await getUserId();
+      
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Error deleting transaction from Supabase:', error);
+        throw error;
+      }
     } catch (error) {
+      console.error('Error deleting transaction:', error);
       throw error;
     }
   };
 
   /**
-   * Save AI suggestion to database with timestamp
+   * Save AI suggestion to Supabase with timestamp
    * @param suggestion - The AI generated suggestion text
    */
   const saveAISuggestion = async (suggestion: string): Promise<void> => {
     try {
       const timestamp = new Date().getTime();
-      await settingsDb.runAsync(
-        `INSERT OR REPLACE INTO ai_suggestions (user_id, suggestion, timestamp, created_at) 
-         VALUES ('default_user', ?, ?, ?)`,
-        [suggestion, timestamp, new Date().toISOString()]
-      );
+      const { error } = await supabase
+        .from('ai_suggestions')
+        .upsert({
+          user_id: user?.id || 'anonymous',
+          suggestion: suggestion,
+          timestamp: timestamp,
+          created_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Error saving AI suggestion to Supabase:', error);
+        throw error;
+      }
 
       // Backup to cloud if enabled
       const autoSyncEnabled = await isCloudBackupEnabled();
-      if (autoSyncEnabled && cloudBackupInitialized) {
-        cloudBackup.backupAISuggestions(suggestion, timestamp).catch(console.error);
+      if (autoSyncEnabled && cloudBackupInitialized && cloudBackupService) {
+        cloudBackupService.backupAISuggestions(suggestion, timestamp).catch(console.error);
       }
     } catch (error) {
       throw error;
@@ -636,57 +597,76 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   /**
-   * Get the latest AI suggestion from database
+   * Get the latest AI suggestion from Supabase
    * @returns Object with suggestion and timestamp, or null if not found
    */
   const getAISuggestion = async (): Promise<{ suggestion: string; timestamp: number } | null> => {
     try {
-      const result = await settingsDb.getFirstAsync(
-        `SELECT suggestion, timestamp FROM ai_suggestions 
-         WHERE user_id = 'default_user' 
-         ORDER BY created_at DESC LIMIT 1`
-      ) as { suggestion: string; timestamp: number } | null;
+      const { data, error } = await supabase
+        .from('ai_suggestions')
+        .select('suggestion, timestamp')
+        .eq('user_id', user?.id || 'anonymous')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
 
-      return result;
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error getting AI suggestion from Supabase:', error);
+        throw error;
+      }
+
+      return data || null;
     } catch (error) {
       throw error;
     }
   };
 
   /**
-   * Clear AI suggestion cache from database
+   * Clear AI suggestion cache from Supabase
    */
   const clearAISuggestion = async (): Promise<void> => {
     try {
-      await settingsDb.runAsync(
-        `DELETE FROM ai_suggestions WHERE user_id = 'default_user'`
-      );
+      const { error } = await supabase
+        .from('ai_suggestions')
+        .delete()
+        .eq('user_id', user?.id || 'anonymous');
+
+      if (error) {
+        console.error('Error clearing AI suggestions from Supabase:', error);
+        throw error;
+      }
     } catch (error) {
       throw error;
     }
   };
 
   /**
-   * Get today's refresh count for the user
+   * Get today's refresh count for the user from Supabase
    * @returns Number of refreshes used today
    */
   const getDailyRefreshCount = async (): Promise<number> => {
     try {
       const today = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD format
-      const result = await settingsDb.getFirstAsync(
-        `SELECT count FROM daily_refresh_count 
-         WHERE user_id = 'default_user' AND date = ?`,
-        [today]
-      ) as { count: number } | null;
+      const { data, error } = await supabase
+        .from('daily_refresh_count')
+        .select('count')
+        .eq('user_id', user?.id || 'anonymous')
+        .eq('date', today)
+        .single();
 
-      return result?.count || 0;
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error getting daily refresh count from Supabase:', error);
+        throw error;
+      }
+
+      return data?.count || 0;
     } catch (error) {
       throw error;
     }
   };
 
   /**
-   * Increment today's refresh count for the user
+   * Increment today's refresh count for the user in Supabase
    */
   const incrementDailyRefreshCount = async (): Promise<void> => {
     try {
@@ -695,19 +675,31 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (currentCount === 0) {
         // Insert new record for today
-        await settingsDb.runAsync(
-          `INSERT INTO daily_refresh_count (user_id, date, count, created_at) 
-           VALUES ('default_user', ?, 1, ?)`,
-          [today, new Date().toISOString()]
-        );
+        const { error } = await supabase
+          .from('daily_refresh_count')
+          .insert({
+            user_id: user?.id || 'anonymous',
+            date: today,
+            count: 1,
+            created_at: new Date().toISOString()
+          });
+
+        if (error) {
+          console.error('Error inserting daily refresh count to Supabase:', error);
+          throw error;
+        }
       } else {
         // Update existing record
-        await settingsDb.runAsync(
-          `UPDATE daily_refresh_count 
-           SET count = count + 1 
-           WHERE user_id = 'default_user' AND date = ?`,
-          [today]
-        );
+        const { error } = await supabase
+          .from('daily_refresh_count')
+          .update({ count: currentCount + 1 })
+          .eq('user_id', user?.id || 'anonymous')
+          .eq('date', today);
+
+        if (error) {
+          console.error('Error updating daily refresh count in Supabase:', error);
+          throw error;
+        }
       }
     } catch (error) {
       throw error;
@@ -732,31 +724,39 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
    */
   const getDatabaseInfo = async (): Promise<any> => {
     try {
-      const dbInfo = await FileSystem.getInfoAsync(DB_PATH);
-      const settingsDbInfo = await FileSystem.getInfoAsync(SETTINGS_DB_PATH);
+      const userId = await getUserId();
+      
+      // Get transaction count from Supabase
+      const { data: transactions, error: transactionError } = await supabase
+        .from('transactions')
+        .select('id', { count: 'exact' })
+        .eq('user_id', userId);
 
-      const transactionCount = await db.getFirstAsync(
-        'SELECT COUNT(*) as count FROM transactions'
-      ) as { count: number } | null;
+      if (transactionError) {
+        console.error('Error getting transaction count:', transactionError);
+      }
 
-      const suggestionCount = await settingsDb.getFirstAsync(
-        'SELECT COUNT(*) as count FROM ai_suggestions'
-      ) as { count: number } | null;
+      // Get AI suggestions count from Supabase
+      const { data: suggestions, error: suggestionError } = await supabase
+        .from('ai_suggestions')
+        .select('id', { count: 'exact' })
+        .eq('user_id', userId);
+
+      if (suggestionError) {
+        console.error('Error getting suggestion count:', suggestionError);
+      }
 
       return {
-        documentDirectory: FileSystem.documentDirectory,
-        mainDatabase: {
-          path: DB_PATH,
-          exists: dbInfo.exists,
-          size: dbInfo.exists ? (dbInfo as any).size || 0 : 0,
-          transactionCount: transactionCount?.count || 0,
+        database: {
+          type: 'Supabase',
+          status: 'Connected',
+          transactionCount: transactions?.length || 0,
+          suggestionCount: suggestions?.length || 0,
         },
-        settingsDatabase: {
-          path: SETTINGS_DB_PATH,
-          exists: settingsDbInfo.exists,
-          size: settingsDbInfo.exists ? (settingsDbInfo as any).size || 0 : 0,
-          suggestionCount: suggestionCount?.count || 0,
-        },
+        user: {
+          id: userId,
+          authenticated: !!user?.id
+        }
       };
     } catch (error) {
       console.error('Error getting database info:', error);
@@ -765,36 +765,31 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   /**
-   * Manual backup function for user-initiated backups
+   * Manual backup to local storage (from Supabase data)
    */
   const manualBackup = async (): Promise<boolean> => {
     try {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const backupDir = FileSystem.documentDirectory + 'backups/';
+      const transactions = await getAllTransactions();
+      const aiSuggestion = await getAISuggestion();
+      const refreshCount = await getDailyRefreshCount();
+      
+      const backupData = {
+        transactions,
+        aiSuggestion,
+        refreshCount,
+        timestamp: new Date().toISOString(),
+        version: '2.0',
+        source: 'supabase'
+      };
 
-      // Create backup directory if it doesn't exist
-      const backupDirInfo = await FileSystem.getInfoAsync(backupDir);
-      if (!backupDirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(backupDir, { intermediates: true });
-      }
+      const backupString = JSON.stringify(backupData, null, 2);
+      const fileName = `moneytalk_backup_${new Date().toISOString().split('T')[0]}.json`;
+      
+      // Store in AsyncStorage as well for local access
+      await AsyncStorage.setItem('latest_backup', backupString);
+      await AsyncStorage.setItem('latest_backup_date', new Date().toISOString());
 
-      // Copy database files to backup directory
-      const backupDbPath = backupDir + `transactions_backup_${timestamp}.db`;
-      const backupSettingsPath = backupDir + `settings_backup_${timestamp}.db`;
-
-      await FileSystem.copyAsync({
-        from: DB_PATH,
-        to: backupDbPath,
-      });
-
-      await FileSystem.copyAsync({
-        from: SETTINGS_DB_PATH,
-        to: backupSettingsPath,
-      });
-
-      console.log('Manual backup completed:');
-      console.log('- Transactions backup:', backupDbPath);
-      console.log('- Settings backup:', backupSettingsPath);
+      console.log(`Manual backup completed with ${transactions.length} transactions`);
 
       return true;
     } catch (error) {
@@ -804,24 +799,14 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   /**
-   * Get list of available backup files
+   * Get list of available backup files (now from AsyncStorage)
    */
   const getBackupFiles = async (): Promise<{ transactions: string[], settings: string[] }> => {
     try {
-      const backupDir = FileSystem.documentDirectory + 'backups/';
-      const backupDirInfo = await FileSystem.getInfoAsync(backupDir);
-
-      if (!backupDirInfo.exists) {
-        return { transactions: [], settings: [] };
-      }
-
-      const files = await FileSystem.readDirectoryAsync(backupDir);
-      const transactionBackups = files.filter(file => file.startsWith('transactions_backup_') && file.endsWith('.db'));
-      const settingsBackups = files.filter(file => file.startsWith('settings_backup_') && file.endsWith('.db'));
-
+      const latestBackupDate = await AsyncStorage.getItem('latest_backup_date');
       return {
-        transactions: transactionBackups.sort().reverse(), // Most recent first
-        settings: settingsBackups.sort().reverse()
+        transactions: latestBackupDate ? [latestBackupDate] : [],
+        settings: []
       };
     } catch (error) {
       console.error('Error getting backup files:', error);
@@ -830,60 +815,24 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   /**
-   * Restore backup from selected backup files
+   * Restore backup from AsyncStorage (simplified for Supabase)
    */
-  const restoreBackup = async (transactionBackupFile?: string, settingsBackupFile?: string): Promise<boolean> => {
+  const restoreBackup = async (): Promise<boolean> => {
     try {
-      const backupDir = FileSystem.documentDirectory + 'backups/';
-
-      // Close current database connections
-      await db.closeAsync();
-      await settingsDb.closeAsync();
-
-      // Restore transaction database if specified
-      if (transactionBackupFile) {
-        const backupPath = backupDir + transactionBackupFile;
-        const backupInfo = await FileSystem.getInfoAsync(backupPath);
-
-        if (backupInfo.exists) {
-          await FileSystem.copyAsync({
-            from: backupPath,
-            to: DB_PATH,
-          });
-          console.log('Transactions database restored from:', transactionBackupFile);
-        } else {
-          throw new Error('Transaction backup file not found');
-        }
+      const backupString = await AsyncStorage.getItem('latest_backup');
+      if (!backupString) {
+        console.log('No local backup found');
+        return false;
       }
 
-      // Restore settings database if specified
-      if (settingsBackupFile) {
-        const backupPath = backupDir + settingsBackupFile;
-        const backupInfo = await FileSystem.getInfoAsync(backupPath);
-
-        if (backupInfo.exists) {
-          await FileSystem.copyAsync({
-            from: backupPath,
-            to: SETTINGS_DB_PATH,
-          });
-          console.log('Settings database restored from:', settingsBackupFile);
-        } else {
-          throw new Error('Settings backup file not found');
-        }
-      }
-
-      // Reinitialize databases
-      await initDatabase(setIsReady);
-
+      const backupData = JSON.parse(backupString);
+      console.log(`Found local backup with ${backupData.transactions?.length || 0} transactions`);
+      
+      // With Supabase, data is already synced from cloud
+      // This function now just confirms local backup exists
       return true;
     } catch (error) {
       console.error('Restore backup failed:', error);
-      // Try to reinitialize databases even if restore failed
-      try {
-        await initDatabase(setIsReady);
-      } catch (initError) {
-        console.error('Failed to reinitialize databases after restore failure:', initError);
-      }
       return false;
     }
   };
@@ -899,30 +848,31 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         throw new Error('Transaction ID is required for update');
       }
 
+      const userId = await getUserId();
+
       // Log the transaction description before updating
       console.log('DatabaseContext - Updating transaction with description:', transaction.description);
 
-      await db.runAsync(
-        `UPDATE transactions 
-         SET amount = ?, category = ?, type = ?, description = ?, date = ? 
-         WHERE id = ?`,
-        [
-          transaction.amount,
-          transaction.category,
-          transaction.type,
-          transaction.description || '',
-          transaction.date || new Date().toISOString(),
-          transaction.id
-        ]
-      );
+      const { data, error } = await supabase
+        .from('transactions')
+        .update({
+          amount: transaction.amount,
+          category: transaction.category,
+          type: transaction.type,
+          description: transaction.description || '',
+          date: transaction.date || new Date().toISOString()
+        })
+        .eq('id', transaction.id)
+        .eq('user_id', userId)
+        .select()
+        .single();
 
-      // Verify the update by retrieving the transaction
-      const updatedTransaction = await db.getFirstAsync(
-        `SELECT * FROM transactions WHERE id = ?`,
-        [transaction.id]
-      ) as Transaction | null;
+      if (error) {
+        console.error('Error updating transaction in Supabase:', error);
+        return false;
+      }
 
-      console.log('DatabaseContext - After update, transaction description:', updatedTransaction?.description);
+      console.log('DatabaseContext - After update, transaction description:', data?.description);
 
       return true;
     } catch (error) {

@@ -37,18 +37,43 @@ export class CloudBackupService {
    */
   async initialize(): Promise<boolean> {
     try {
-      // Generate or retrieve device-based user ID
-      this.userId = await this.getOrCreateDeviceUserId();
+      console.log('CloudBackupService: Starting initialization...');
       
-      // Create user profile if doesn't exist
+      // Get user ID from Supabase auth session
+      this.userId = await this.getAuthenticatedUserId();
+      console.log('CloudBackupService: Retrieved user ID:', this.userId ? 'Found' : 'Not found');
+      
+      // Create user profile if doesn't exist and user is authenticated
       if (this.userId) {
+        console.log('CloudBackupService: Creating user profile...');
         await this.createUserProfile();
+        console.log('CloudBackupService: User profile created/updated successfully');
+      } else {
+        console.log('CloudBackupService: No authenticated user found');
+        return false;
       }
 
+      console.log('CloudBackupService: Initialization completed successfully');
       return true;
     } catch (error) {
-      console.error('Failed to initialize cloud backup:', error);
+      console.error('CloudBackupService: Failed to initialize:', error);
       return false;
+    }
+  }
+
+  /**
+   * Get authenticated user ID from AsyncStorage
+   */
+  private async getAuthenticatedUserId(): Promise<string | null> {
+    try {
+      console.log('CloudBackupService: Retrieving user ID from AsyncStorage...');
+      // Get user ID from AsyncStorage (set by AuthContext)
+      const userId = await AsyncStorage.getItem('supabase_user_id');
+      console.log('CloudBackupService: AsyncStorage user ID:', userId ? `Found (${userId.substring(0, 8)}...)` : 'Not found');
+      return userId;
+    } catch (error) {
+      console.error('CloudBackupService: Error getting authenticated user ID:', error);
+      return null;
     }
   }
 
