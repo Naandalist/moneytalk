@@ -40,6 +40,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (event === 'SIGNED_IN' && session?.user) {
                     // Store user ID for cloud backup
                     await AsyncStorage.setItem('supabase_user_id', session.user.id);
+                    // Clear any existing device user ID to prevent confusion
+                    await AsyncStorage.removeItem('device_user_id');
                     // Create user profile in database
                     await createUserProfile(session.user.id);
                 } else if (event === 'SIGNED_OUT') {

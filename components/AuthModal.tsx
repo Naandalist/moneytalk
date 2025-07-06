@@ -156,7 +156,7 @@ export default function AuthModal({ visible, onClose, onSuccess }: AuthModalProp
       fontWeight: '600',
     },
     switchContainer: {
-      flexDirection: 'row',
+      flexDirection: 'column',
       justifyContent: 'center',
       alignItems: 'center',
       marginTop: 16,
@@ -164,9 +164,17 @@ export default function AuthModal({ visible, onClose, onSuccess }: AuthModalProp
     switchText: {
       color: colors.textSecondary,
       fontSize: 14,
+      marginBottom: 12,
     },
     switchButton: {
-      marginLeft: 4,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      borderRadius: 8,
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      minWidth: 100,
+      alignItems: 'center',
     },
     switchButtonText: {
       color: colors.primary,

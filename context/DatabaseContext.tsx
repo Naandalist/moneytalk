@@ -169,7 +169,42 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const addTransaction = async (transaction: Transaction): Promise<number> => {
     try {
-      const userId = await getUserId();
+      // Use user_id from transaction if provided, otherwise get from getUserId()
+      const userId = (transaction as any).user_id || await getUserId();
+      
+      // Ensure user profile exists before inserting transaction
+      if (user?.id) {
+        try {
+          // Check if user profile exists
+          const { data: existingProfile, error: profileCheckError } = await supabase
+            .from('user_profiles')
+            .select('user_id')
+            .eq('user_id', userId)
+            .single();
+
+          // If profile doesn't exist, create it
+          if (profileCheckError && profileCheckError.code === 'PGRST116') {
+            console.log('Creating user profile for:', userId);
+            const { error: createError } = await supabase
+              .from('user_profiles')
+              .upsert({
+                user_id: userId,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              });
+            
+            if (createError) {
+              console.error('Error creating user profile:', createError);
+              // Don't throw here, let the transaction insert attempt and handle the error
+            } else {
+              console.log('User profile created successfully');
+            }
+          }
+        } catch (profileError) {
+          console.error('Error checking/creating user profile:', profileError);
+          // Continue with transaction insert
+        }
+      }
       
       const { data, error } = await supabase
         .from('transactions')
@@ -286,6 +321,40 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const enableAutoSync = async (enabled: boolean): Promise<void> => {
     try {
       const userId = await getUserId();
+      
+      // Ensure user profile exists before inserting settings
+      if (user?.id) {
+        try {
+          // Check if user profile exists
+          const { data: existingProfile, error: profileCheckError } = await supabase
+            .from('user_profiles')
+            .select('user_id')
+            .eq('user_id', userId)
+            .single();
+
+          // If profile doesn't exist, create it
+          if (profileCheckError && profileCheckError.code === 'PGRST116') {
+            console.log('Creating user profile for settings:', userId);
+            const { error: createError } = await supabase
+              .from('user_profiles')
+              .upsert({
+                user_id: userId,
+                created_at: new Date().toISOString()
+              });
+
+            if (createError) {
+              console.error('Error creating user profile for settings:', createError);
+              throw createError;
+            }
+          } else if (profileCheckError) {
+            console.error('Error checking user profile for settings:', profileCheckError);
+            throw profileCheckError;
+          }
+        } catch (profileError) {
+          console.error('Error ensuring user profile exists for settings:', profileError);
+          throw profileError;
+        }
+      }
       
       const { error } = await supabase
         .from('settings')

@@ -101,8 +101,8 @@ export default function TransactionConfirmation({
       amount: finalAmount,
     };
 
-    // Check if user is authenticated and if this is their first transaction
-    if (isFirstTimeUser && !user) {
+    // Check if user is authenticated - require login for all transactions
+    if (!user) {
       // Store the transaction to save after authentication
       setPendingTransaction(transactionToSave);
       setShowAuthModal(true);
@@ -120,16 +120,25 @@ export default function TransactionConfirmation({
 
   const handleAuthSuccess = async () => {
     setShowAuthModal(false);
-    
+
     // Mark that user has saved transactions
     await AsyncStorage.setItem('has_saved_transactions', 'true');
     setIsFirstTimeUser(false);
-    
-    // Save the pending transaction
-    if (pendingTransaction) {
-      onSave(pendingTransaction);
-      setPendingTransaction(null);
-    }
+
+    // Wait a moment for user profile creation to complete
+    // This prevents race condition with foreign key constraint
+    setTimeout(() => {
+      // Save the pending transaction with updated user context
+      if (pendingTransaction && user) {
+        // Ensure the transaction uses the authenticated user's ID
+        const transactionWithCorrectUserId = {
+          ...pendingTransaction,
+          user_id: user.id // Explicitly set the authenticated user's ID
+        };
+        onSave(transactionWithCorrectUserId);
+        setPendingTransaction(null);
+      }
+    }, 2000); // 2 second delay to ensure profile creation completes
   };
 
   const handleAuthCancel = () => {

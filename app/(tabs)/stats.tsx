@@ -52,7 +52,7 @@ export default function StatsScreen() {
     loadRemainingRefreshes();
   }, [period]);
 
-  // Clear data when user logs out
+  // Handle user authentication state changes
   useEffect(() => {
     if (!user) {
       // Clear all state when user logs out
@@ -64,16 +64,23 @@ export default function StatsScreen() {
       });
       setSuggestion('');
       setRemainingRefreshes(3);
+    } else {
+      // Reload data when user logs in
+      loadData();
+      loadSuggestion();
+      loadRemainingRefreshes();
     }
   }, [user]);
 
   // Add focus effect to reload data when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      loadData();
-      loadSuggestion();
-      loadRemainingRefreshes();
-    }, [period])
+      if (user) {
+        loadData();
+        loadSuggestion();
+        loadRemainingRefreshes();
+      }
+    }, [period, user])
   );
 
   /**
@@ -81,6 +88,13 @@ export default function StatsScreen() {
    * @param forceRefresh - Force generation of new suggestion
    */
   const loadSuggestion = async (forceRefresh: boolean = false) => {
+    // Don't load suggestions if user is not logged in
+    if (!user) {
+      setSuggestion('');
+      setLoadingSuggestion(false);
+      return;
+    }
+
     setLoadingSuggestion(true);
     try {
       if (!forceRefresh) {
@@ -117,6 +131,12 @@ export default function StatsScreen() {
    * Load remaining refreshes count
    */
   const loadRemainingRefreshes = async () => {
+    // Don't load remaining refreshes if user is not logged in
+    if (!user) {
+      setRemainingRefreshes(3);
+      return;
+    }
+
     try {
       const remaining = await getRemainingRefreshes();
       setRemainingRefreshes(remaining);
@@ -129,6 +149,11 @@ export default function StatsScreen() {
    * Manually refresh AI suggestion with daily limit check
    */
   const handleRefreshSuggestion = async () => {
+    // Don't refresh suggestions if user is not logged in
+    if (!user) {
+      return;
+    }
+
     try {
       const remaining = await getRemainingRefreshes();
       if (remaining <= 0) {
@@ -145,6 +170,11 @@ export default function StatsScreen() {
   };
 
   const loadData = async () => {
+    // Don't load data if user is not logged in
+    if (!user) {
+      return;
+    }
+
     try {
       // Get transactions for the selected period
       const periodTransactions = await getTransactionsByPeriod(period);
@@ -154,11 +184,12 @@ export default function StatsScreen() {
       const categoryTransactions = await getTransactionsByCategory(period);
 
       // Format data for pie chart (expenses only)
+      // Note: getTransactionsByCategory already returns positive amounts for expenses
       const pieData = categoryTransactions
-        .filter(item => item.amount < 0) // Show only expenses (negative amounts)
+        .filter(item => item.amount > 0) // Show only expenses (positive amounts from getTransactionsByCategory)
         .map(item => ({
           name: item.category,
-          amount: Math.abs(item.amount),
+          amount: item.amount, // Already positive from getTransactionsByCategory
           color: categoryColors[item.category] || colors.accent,
           legendFontColor: colors.text,
           legendFontSize: 12
