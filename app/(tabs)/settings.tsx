@@ -6,9 +6,6 @@ import { Moon, Sun, Trash2, RefreshCcw, Database, Info, LogOut, User, Mail } fro
 import { useDatabase } from '@/context/DatabaseContext';
 import { useNotification } from '@/hooks/useNotification';
 import CustomNotification from '@/components/CustomNotification';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
-import { convertFromUTC, getUserTimezone } from '@/utils/timezoneUtils';
 import Constants from 'expo-constants';
 import { useAuth } from '@/context/AuthContext';
 import AuthModal from '@/components/AuthModal';
@@ -22,12 +19,7 @@ export default function SettingsScreen() {
   const { user, session, signOut, loading: authLoading } = useAuth();
   const {
     clearAllTransactions,
-    getAllTransactions,
-    getDatabaseInfo,
-    manualBackup,
-    getBackupFiles,
     restoreBackup,
-    // Add these cloud backup functions
     getCloudSyncStatus,
     isCloudBackupEnabled,
     cloudBackupData,
@@ -36,10 +28,6 @@ export default function SettingsScreen() {
   } = useDatabase();
 
   const { notification, showWarning, showInfo, showSuccess, showError, hideNotification } = useNotification();
-  const [isClearing, setIsClearing] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [showBackupList, setShowBackupList] = useState(false);
   const [backupFiles, setBackupFiles] = useState<{ transactions: string[], settings: string[] }>({ transactions: [], settings: [] });
@@ -73,7 +61,7 @@ export default function SettingsScreen() {
     try {
       const result = await cloudBackupData();
       if (result.success) {
-        showSuccess('Cloud Backup Complete', result.message);
+        showSuccess('Cloud Backup Complete', result.message, 2000);
         await loadCloudSyncStatus();
       } else {
         showError('Cloud Backup Failed', result.message);
@@ -99,7 +87,7 @@ export default function SettingsScreen() {
             try {
               const result = await cloudRestoreData();
               if (result.success) {
-                showSuccess('Cloud Restore Complete', result.message);
+                showSuccess('Cloud Restore Complete', result.message, 2000);
                 await loadCloudSyncStatus();
               } else {
                 showError('Cloud Restore Failed', result.message);
@@ -155,9 +143,9 @@ export default function SettingsScreen() {
             setIsLoggingOut(true);
             try {
               await signOut();
-              showSuccess('Signed Out', 'You have been successfully signed out.');
+              showSuccess('Signed Out', 'You have been successfully signed out.', 2000);
             } catch (error) {
-              showError('Sign Out Failed', 'Failed to sign out. Please try again.');
+              showError('Sign Out Failed', 'Failed to sign out. Please try again.', 2000);
             } finally {
               setIsLoggingOut(false);
             }
@@ -172,7 +160,7 @@ export default function SettingsScreen() {
    */
   const handleAuthSuccess = () => {
     setShowAuthModal(false);
-    showSuccess('Welcome!', 'You have been successfully signed in.');
+    showSuccess('Welcome!', 'You have been successfully signed in.', 2000);
   };
 
   /**
@@ -206,150 +194,12 @@ export default function SettingsScreen() {
     try {
       await clearAllTransactions();
       hideNotification();
-      showSuccess('Success', 'All transactions have been deleted.');
+      showSuccess('Success', 'All transactions have been deleted.', 2000);
     } catch (error) {
       console.error('Error clearing data:', error);
       hideNotification();
       showError('Error', 'Failed to clear data. Please try again.');
     }
-  };
-
-  const handleExportData = async () => {
-    try {
-      showInfo('Exporting...', 'Preparing your transaction data for export.');
-
-      // Get all transactions
-      const transactions = await getAllTransactions();
-
-      if (transactions.length === 0) {
-        hideNotification();
-        showInfo('No Data', 'No transactions found to export.');
-        return;
-      }
-
-      // Convert transactions to CSV format
-      const csvHeader = 'ID,Date,Type,Category,Amount,Description\n';
-      const csvData = transactions.map(transaction => {
-        // Convert from UTC to user's timezone for display
-        const localDate = convertFromUTC(transaction.date);
-        const userTimezone = getUserTimezone();
-        const date = localDate.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          timeZone: userTimezone,
-        });
-        const description = (transaction.description || '').replace(/"/g, '""'); // Escape quotes
-        return `${transaction.id},"${date}","${transaction.type}","${transaction.category}",${transaction.amount},"${description}"`;
-      }).join('\n');
-
-      const csvContent = csvHeader + csvData;
-
-      // Create file path
-      const fileName = `moneytalk_transactions_${new Date().toISOString().split('T')[0]}.csv`;
-      const fileUri = FileSystem.documentDirectory + fileName;
-
-      // Write CSV file
-      await FileSystem.writeAsStringAsync(fileUri, csvContent, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      hideNotification();
-
-      // Show options to user
-      Alert.alert(
-        'Export Options',
-        'Choose how you want to save your transaction data:',
-        [
-          {
-            text: 'Export & Save',
-            onPress: async () => {
-              // Direct file sharing instead of saving to media library
-              try {
-                if (await Sharing.isAvailableAsync()) {
-                  await Sharing.shareAsync(fileUri, {
-                    mimeType: 'text/csv',
-                    dialogTitle: 'Save Transaction Data',
-                  });
-                  showSuccess('Export Complete', `Successfully exported ${transactions.length} transactions. Use your device's file manager to save the file.`);
-                } else {
-                  showError('Export Failed', 'File sharing is not available on this device.');
-                }
-              } catch (error) {
-                console.error('Save error:', error);
-                showError('Save Failed', 'Failed to export file. Please try again.');
-              }
-            }
-          },
-          {
-            text: 'Share File',
-            onPress: async () => {
-              try {
-                if (await Sharing.isAvailableAsync()) {
-                  await Sharing.shareAsync(fileUri, {
-                    mimeType: 'text/csv',
-                    dialogTitle: 'Export Transaction Data',
-                  });
-                  showSuccess('Export Complete', `Successfully exported ${transactions.length} transactions.`);
-                } else {
-                  showError('Export Failed', 'Sharing is not available on this device.');
-                }
-              } catch (error) {
-                console.error('Share error:', error);
-                showError('Share Failed', 'Failed to share file. Please try again.');
-              }
-            }
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          }
-        ]
-      );
-
-    } catch (error) {
-      console.error('Export error:', error);
-      hideNotification();
-      showError('Export Failed', 'Failed to export transaction data. Please try again.');
-    }
-  };
-
-  const handleSyncData = () => {
-    showInfo('Coming Soon', 'This feature will be available in a future update.');
-  };
-
-  const handleBackup = async () => {
-    setIsBackingUp(true);
-    try {
-      const success = await manualBackup();
-      if (success) {
-        showSuccess('Backup Complete', 'Backup created successfully!');
-        // Refresh backup list if it's currently shown
-        if (showBackupList) {
-          await loadBackupFiles();
-        }
-      } else {
-        showError('Backup Failed', 'Failed to create backup');
-      }
-    } catch (error) {
-      showError('Backup Failed', 'Backup failed: ' + (error as Error).message);
-    } finally {
-      setIsBackingUp(false);
-    }
-  };
-
-  const loadBackupFiles = async () => {
-    try {
-      const files = await getBackupFiles();
-      setBackupFiles(files);
-    } catch (error) {
-      showError('Load Failed', 'Failed to load backup files: ' + (error as Error).message);
-    }
-  };
-
-  const handleShowBackupList = async () => {
-    setShowBackupList(true);
-    await loadBackupFiles();
   };
 
   const handleRestoreBackup = async () => {

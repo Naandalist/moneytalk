@@ -15,6 +15,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { X, Mail, Lock, User } from 'lucide-react-native';
 import { useNotification } from '@/hooks/useNotification';
+import CustomNotification from './CustomNotification';
 
 interface AuthModalProps {
   visible: boolean;
@@ -30,7 +31,7 @@ export default function AuthModal({ visible, onClose, onSuccess }: AuthModalProp
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { showSuccess } = useNotification();
+  const { notification, showSuccess, hideNotification } = useNotification();
 
   const handleSubmit = async () => {
     if (!email || !password) {
@@ -294,6 +295,13 @@ export default function AuthModal({ visible, onClose, onSuccess }: AuthModalProp
             </TouchableOpacity>
           </View>
         </View>
+        {/* Add CustomNotification component */}
+        {notification && (
+          <CustomNotification
+            notification={notification}
+            onClose={hideNotification}
+          />
+        )}
       </KeyboardAvoidingView>
     </Modal>
   );

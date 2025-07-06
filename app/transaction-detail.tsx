@@ -151,7 +151,7 @@ export default function TransactionDetailScreen() {
             const success = await updateTransaction(updatedTransaction);
 
             if (success) {
-                showSuccess('Success', 'Transaction updated successfully');
+                showSuccess('Success', 'Transaction updated successfully', 2000);
                 setTransaction(updatedTransaction); // Update local state
                 setIsEditing(false);
             } else {
