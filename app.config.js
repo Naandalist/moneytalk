@@ -2,7 +2,7 @@ export default ({ config }) => ({
   ...config,
   name: 'moneytalk',
   slug: 'moneytalk',
-  version: '1.1.0',
+  version: '2.0.0',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   splash: {
