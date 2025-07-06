@@ -367,7 +367,7 @@ export default function SettingsScreen() {
           <NativeAdCard />
         </View>
 
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Data Management</Text>
 
           <TouchableOpacity
@@ -443,7 +443,7 @@ export default function SettingsScreen() {
             </View>
           )}
 
-        </View>
+        </View> */}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
