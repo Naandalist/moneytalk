@@ -1,7 +1,7 @@
-import { Transaction } from '../types/transaction';
+import { Transaction } from '@/types/transaction';
 import { categoryList } from './categories';
 import { convertToUTC, getUserTimezone, getCurrentDateInTimezone } from './timezoneUtils';
-import Constants from 'expo-constants';
+import { getOpenAIKey, getOpenAIEndpoint, OPENAI_ENDPOINTS } from './openaiConfig';
 
 // OpenAI API integration for transaction analysis
 export async function analyzeTransaction(transcription: string): Promise<Transaction> {
@@ -63,10 +63,7 @@ async function analyzeWithOpenAI(transcription: string): Promise<{
   date: string;
 }> {
 
-  const openaiKey = Constants.expoConfig?.extra?.openaiApiKey || null;
-  if (!openaiKey) {
-    throw new Error('OpenAI API key not found');
-  }
+  const openaiKey = await getOpenAIKey();
 
   const availableCategories = categoryList.join(', ');
 
@@ -106,7 +103,7 @@ Respond ONLY in this JSON format:
   "timezone": "${timezone}"
 }`;
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const response = await fetch(getOpenAIEndpoint(OPENAI_ENDPOINTS.CHAT_COMPLETIONS), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

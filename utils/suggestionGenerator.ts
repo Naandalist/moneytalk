@@ -1,20 +1,12 @@
 import { Transaction } from '@/types/transaction';
-import Constants from 'expo-constants';
-
-const getOpenAIKey = (): string => {
-  const appApiKey = Constants.expoConfig?.extra?.openaiApiKey;
-  if (!appApiKey) {
-    throw new Error('OpenAI API key not found');
-  }
-  return appApiKey;
-};
+import { getOpenAIKey, getOpenAIEndpoint, OPENAI_ENDPOINTS } from './openaiConfig';
 
 export const generateSuggestion = async (
   thisWeekTransactions: Transaction[],
   lastMonthTransactions: Transaction[]
 ): Promise<string> => {
   try {
-    const apiKey = getOpenAIKey();
+    const apiKey = await getOpenAIKey();
 
     const prompt = `
       Analyze the user's spending habits based on the following data:
@@ -28,7 +20,7 @@ export const generateSuggestion = async (
       The response should be a single string of advice.
     `;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(getOpenAIEndpoint(OPENAI_ENDPOINTS.CHAT_COMPLETIONS), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
