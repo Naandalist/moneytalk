@@ -5,7 +5,7 @@ import Constants from 'expo-constants';
  * @returns The OpenAI base URL
  */
 export const getOpenAIBaseUrl = (): string => {
-  return Constants.expoConfig?.extra?.openaiBaseUrl || 'https://api.openai.com';
+  return Constants.expoConfig?.extra?.sumopodAiBaseUrl || Constants.expoConfig?.extra?.openaiBaseUrl;
 };
 
 /**
@@ -21,7 +21,7 @@ export const getOpenAIKey = async (): Promise<string> => {
   // }
   
   // Fallback to app's API key
-  const appApiKey = Constants.expoConfig?.extra?.openaiApiKey;
+  const appApiKey = Constants.expoConfig?.extra?.sumopodAiApiKey || Constants.expoConfig?.extra?.openaiApiKey;
   if (!appApiKey) {
     throw new Error('OpenAI API key not found');
   }
