@@ -110,7 +110,7 @@ Respond ONLY in this JSON format:
       'Authorization': `Bearer ${openaiKey}`,
     },
     body: JSON.stringify({
-      model: 'gpt-4.1-nano-2025-04-14',
+      model: 'gpt-4.1-nano',
       messages: [
         {
           role: 'system',
