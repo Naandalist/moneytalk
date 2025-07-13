@@ -5,7 +5,13 @@ import Constants from 'expo-constants';
  * @returns The OpenAI base URL
  */
 export const getOpenAIBaseUrl = (): string => {
-  return Constants.expoConfig?.extra?.sumopodAiBaseUrl || Constants.expoConfig?.extra?.openaiBaseUrl;
+  const baseUrl = Constants.expoConfig?.extra?.sumopodAiBaseUrl || Constants.expoConfig?.extra?.openaiBaseUrl || 'https://api.openai.com';
+  if (!baseUrl) {
+    throw new Error('OpenAI base URL not found');
+  } else {
+    console.log('Using AI base URL:', baseUrl);
+  }
+  return baseUrl;
 };
 
 /**
