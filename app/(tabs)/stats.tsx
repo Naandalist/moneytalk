@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Transaction } from '@/types/transaction';
 import { useTheme } from '@/context/ThemeContext';
@@ -27,10 +27,13 @@ interface PieChartData {
   legendFontSize: number;
 }
 
+const TRANSACTIONS_PER_PAGE = 20;
+const CHART_CATEGORY_LIMIT = 8; // Limit categories in pie chart for better performance
+
 export default function StatsScreen() {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const { getTransactionsByPeriod, getTransactionsByCategory, saveAISuggestion, getAISuggestion, clearAISuggestion, getRemainingRefreshes, incrementDailyRefreshCount } = useDatabase();
+  const { getTransactionsByPeriod, getTransactionsByCategory, getTransactionCount, saveAISuggestion, getAISuggestion, clearAISuggestion, getRemainingRefreshes, incrementDailyRefreshCount } = useDatabase();
   const { selectedCurrency } = useCurrency();
   const { user } = useAuth();
 
@@ -45,9 +48,15 @@ export default function StatsScreen() {
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
   const [remainingRefreshes, setRemainingRefreshes] = useState(3);
   const [showRefreshInfo, setShowRefreshInfo] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalTransactions, setTotalTransactions] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreTransactions, setHasMoreTransactions] = useState(true);
 
   useEffect(() => {
-    loadData();
+    resetPaginationAndLoadData();
     loadSuggestion();
     loadRemainingRefreshes();
   }, [period]);
@@ -64,9 +73,12 @@ export default function StatsScreen() {
       });
       setSuggestion('');
       setRemainingRefreshes(3);
+      setCurrentPage(0);
+      setTotalTransactions(0);
+      setHasMoreTransactions(true);
     } else {
       // Reload data when user logs in
-      loadData();
+      resetPaginationAndLoadData();
       loadSuggestion();
       loadRemainingRefreshes();
     }
@@ -74,14 +86,107 @@ export default function StatsScreen() {
 
   // Add focus effect to reload data when screen comes into focus
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       if (user) {
-        loadData();
+        resetPaginationAndLoadData();
         loadSuggestion();
         loadRemainingRefreshes();
       }
     }, [period, user])
   );
+
+  /**
+   * Reset pagination state and load initial data
+   */
+  const resetPaginationAndLoadData = useCallback(async () => {
+    setCurrentPage(0);
+    setTransactions([]);
+    setHasMoreTransactions(true);
+    await loadInitialData();
+  }, [period, user]);
+
+  /**
+   * Load initial data including charts and first page of transactions
+   */
+  const loadInitialData = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      // Load transaction count for pagination
+      const count = await getTransactionCount(period);
+      setTotalTransactions(count);
+      setHasMoreTransactions(count > TRANSACTIONS_PER_PAGE);
+
+      // Load first page of transactions
+      const firstPageTransactions = await getTransactionsByPeriod(period, TRANSACTIONS_PER_PAGE, 0);
+      setTransactions(firstPageTransactions);
+
+      // Load chart data with optimized limits
+      await loadChartData();
+    } catch (error) {
+      console.error('Error loading initial data:', error);
+    }
+  }, [period, user]);
+
+  /**
+   * Load more transactions for pagination
+   */
+  const loadMoreTransactions = useCallback(async () => {
+    if (!user || loadingMore || !hasMoreTransactions) return;
+
+    setLoadingMore(true);
+    try {
+      const nextPage = currentPage + 1;
+      const offset = nextPage * TRANSACTIONS_PER_PAGE;
+      
+      const moreTransactions = await getTransactionsByPeriod(period, TRANSACTIONS_PER_PAGE, offset);
+      
+      if (moreTransactions.length > 0) {
+        setTransactions(prev => [...prev, ...moreTransactions]);
+        setCurrentPage(nextPage);
+        
+        // Check if there are more transactions
+        const hasMore = (nextPage + 1) * TRANSACTIONS_PER_PAGE < totalTransactions;
+        setHasMoreTransactions(hasMore);
+      } else {
+        setHasMoreTransactions(false);
+      }
+    } catch (error) {
+      console.error('Error loading more transactions:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [currentPage, period, user, loadingMore, hasMoreTransactions, totalTransactions]);
+
+  /**
+   * Load chart data with optimized queries
+   */
+  const loadChartData = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      // Get spending by category with limit for better performance
+      const categoryTransactions = await getTransactionsByCategory(period, CHART_CATEGORY_LIMIT);
+
+      // Format data for pie chart (expenses only)
+      const pieData = categoryTransactions
+        .filter(item => item.amount > 0)
+        .map(item => ({
+          name: item.category,
+          amount: item.amount,
+          color: categoryColors[item.category] || colors.accent,
+          legendFontColor: colors.text,
+          legendFontSize: 12
+        }));
+
+      setCategoryData(pieData);
+
+      // Load timeline data using a smaller dataset for performance
+      await loadTimelineData();
+    } catch (error) {
+      console.error('Error loading chart data:', error);
+    }
+  }, [period, user, colors]);
 
   /**
    * Load AI suggestion from database cache or generate new one
@@ -111,9 +216,10 @@ export default function StatsScreen() {
         }
       }
 
-      // Generate new suggestion
-      const thisWeekTransactions = await getTransactionsByPeriod('week');
-      const lastMonthTransactions = await getTransactionsByPeriod('month');
+      // Generate new suggestion with optimized data loading
+      // Use smaller datasets for AI suggestion generation
+      const thisWeekTransactions = await getTransactionsByPeriod('week', 100); // Limit to recent 100 transactions
+      const lastMonthTransactions = await getTransactionsByPeriod('month', 200); // Limit to recent 200 transactions
       const newSuggestion = await generateSuggestion(thisWeekTransactions, lastMonthTransactions);
 
       // Save the new suggestion to database
@@ -169,35 +275,16 @@ export default function StatsScreen() {
     }
   };
 
-  const loadData = async () => {
-    // Don't load data if user is not logged in
-    if (!user) {
-      return;
-    }
+  /**
+   * Load timeline data for charts using optimized queries
+   */
+  const loadTimelineData = useCallback(async () => {
+    if (!user) return;
 
     try {
-      // Get transactions for the selected period
-      const periodTransactions = await getTransactionsByPeriod(period);
-      setTransactions(periodTransactions);
-
-      // Get spending by category
-      const categoryTransactions = await getTransactionsByCategory(period);
-
-      // Format data for pie chart (expenses only)
-      // Note: getTransactionsByCategory already returns positive amounts for expenses
-      const pieData = categoryTransactions
-        .filter(item => item.amount > 0) // Show only expenses (positive amounts from getTransactionsByCategory)
-        .map(item => ({
-          name: item.category,
-          amount: item.amount, // Already positive from getTransactionsByCategory
-          color: categoryColors[item.category] || colors.accent,
-          legendFontColor: colors.text,
-          legendFontSize: 12
-        }));
-
-      setCategoryData(pieData);
-
-      // Format data for line chart using real transaction data
+      // Get transactions for timeline calculation with reasonable limit
+      const timelineTransactions = await getTransactionsByPeriod(period, 1000); // Limit for performance
+      
       const timelineLabels = [];
       const timelineValues = [];
 
@@ -213,7 +300,7 @@ export default function StatsScreen() {
           timelineLabels.push(dayName);
 
           // Calculate total expenses for this day
-          const dayExpenses = periodTransactions
+          const dayExpenses = timelineTransactions
             .filter(t => {
               // Convert UTC date to user's timezone for comparison
               const transactionDate = convertFromUTC(t.date);
@@ -236,7 +323,7 @@ export default function StatsScreen() {
           const weekEnd = new Date(today);
           weekEnd.setDate(today.getDate() - (i * 7));
 
-          const weekExpenses = periodTransactions
+          const weekExpenses = timelineTransactions
             .filter(t => {
               // Convert UTC date to user's timezone for comparison
               const transactionDate = convertFromUTC(t.date);
@@ -255,7 +342,7 @@ export default function StatsScreen() {
           const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
           timelineLabels.push(monthNames[date.getMonth()]);
 
-          const monthExpenses = periodTransactions
+          const monthExpenses = timelineTransactions
             .filter(t => {
               // Convert UTC date to user's timezone for comparison
               const transactionDate = convertFromUTC(t.date);
@@ -279,9 +366,9 @@ export default function StatsScreen() {
       });
 
     } catch (error) {
-      console.error('Error loading statistics:', error);
+      console.error('Error loading timeline data:', error);
     }
-  };
+  }, [period, user]);
 
   const getTotalExpenses = () => {
     return transactions
@@ -495,7 +582,13 @@ export default function StatsScreen() {
           Transactions
         </Text>
 
-        <TransactionList transactions={transactions} />
+        <TransactionList 
+          transactions={transactions}
+          onLoadMore={loadMoreTransactions}
+          hasMore={hasMoreTransactions}
+          loading={loadingMore}
+          showLoadMore={true}
+        />
       </ScrollView>
     </View>
   );
