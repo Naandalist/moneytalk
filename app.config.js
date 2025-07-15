@@ -109,6 +109,9 @@ export default ({ config }) => ({
     },
     // Add environment variables here
     openaiApiKey: process.env.OPENAI_API_KEY,
+    openaiBaseUrl: process.env.OPENAI_BASE_URL,
+    sumopodAiApiKey: process.env.SUMOPOD_AI_API_KEY,
+    sumopodAiBaseUrl: process.env.SUMOPOD_AI_BASE_URL,
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
   },
