@@ -27,29 +27,28 @@ Run the following SQL commands in your Supabase SQL editor:
 ```sql
 -- User profiles table
 CREATE TABLE user_profiles (
-  id UUID PRIMARY KEY,
+  id UUID PRIMARY KEY REFERENCES auth.users(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  timezone TEXT DEFAULT 'Asia/Jakarta',
+  timezone TEXT DEFAULT 'UTC',
   last_sync TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Transactions table
 CREATE TABLE transactions (
-  id TEXT PRIMARY KEY,
+  id BIGSERIAL PRIMARY KEY,
   user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
-  amount DECIMAL(15,2) NOT NULL,
+  amount DECIMAL NOT NULL,
   category TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+  type TEXT NOT NULL,
   description TEXT,
-  date TEXT NOT NULL,
-  image_url TEXT,
+  date TIMESTAMP WITH TIME ZONE NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- AI suggestions table
 CREATE TABLE ai_suggestions (
-  id SERIAL PRIMARY KEY,
+  id BIGSERIAL PRIMARY KEY,
   user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
   suggestion TEXT NOT NULL,
   timestamp BIGINT NOT NULL,
@@ -58,9 +57,9 @@ CREATE TABLE ai_suggestions (
 
 -- Daily refresh count table
 CREATE TABLE daily_refresh_count (
-  id SERIAL PRIMARY KEY,
+  id BIGSERIAL PRIMARY KEY,
   user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
-  date TEXT NOT NULL,
+  date DATE NOT NULL,
   count INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(user_id, date)
@@ -68,79 +67,36 @@ CREATE TABLE daily_refresh_count (
 
 -- Settings table
 CREATE TABLE settings (
-  id SERIAL PRIMARY KEY,
+  id BIGSERIAL PRIMARY KEY,
   user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
   key TEXT NOT NULL,
-  value TEXT,
+  value TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(user_id, key)
 );
-```
 
-### 2. Create Indexes
-
-```sql
--- Indexes for better performance
-CREATE INDEX idx_transactions_user_id ON transactions(user_id);
-CREATE INDEX idx_transactions_date ON transactions(date);
-CREATE INDEX idx_transactions_image_url ON transactions(image_url) WHERE image_url IS NOT NULL;
-CREATE INDEX idx_ai_suggestions_user_id ON ai_suggestions(user_id);
-CREATE INDEX idx_daily_refresh_count_user_id ON daily_refresh_count(user_id);
-CREATE INDEX idx_settings_user_id ON settings(user_id);
-```
-
-### 3. Storage Setup
-
-Create a storage bucket for receipt images:
-
-1. Go to Storage in your Supabase dashboard
-2. Create a new bucket named `images`
-3. Set the bucket to public (for easier access to receipt images)
-4. Or configure RLS policies for the bucket if you prefer private storage
-
-### 4. Row Level Security (RLS) Policies
-
-**Option 1: Disable RLS (Recommended for device-based auth)**
-
-```sql
--- Disable RLS for device-based authentication
-ALTER TABLE user_profiles DISABLE ROW LEVEL SECURITY;
-ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE ai_suggestions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE daily_refresh_count DISABLE ROW LEVEL SECURITY;
-ALTER TABLE settings DISABLE ROW LEVEL SECURITY;
-```
-
-**Option 2: Enable RLS with permissive policies (Alternative)**
-
-```sql
--- Enable RLS on all tables
+-- Enable Row Level Security
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_suggestions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_refresh_count ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 
--- User profiles policies (allow all operations)
-CREATE POLICY "Allow all operations on user_profiles" ON user_profiles
-  FOR ALL USING (true) WITH CHECK (true);
+-- Create policies for user data access
+CREATE POLICY "Users can view own profile" ON user_profiles
+  FOR ALL USING (auth.uid() = id);
 
--- Transactions policies (allow all operations)
-CREATE POLICY "Allow all operations on transactions" ON transactions
-  FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Users can manage own transactions" ON transactions
+  FOR ALL USING (auth.uid() = user_id);
 
--- AI suggestions policies (allow all operations)
-CREATE POLICY "Allow all operations on ai_suggestions" ON ai_suggestions
-  FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Users can manage own AI suggestions" ON ai_suggestions
+  FOR ALL USING (auth.uid() = user_id);
 
--- Daily refresh count policies (allow all operations)
-CREATE POLICY "Allow all operations on daily_refresh_count" ON daily_refresh_count
-  FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Users can manage own refresh counts" ON daily_refresh_count
+  FOR ALL USING (auth.uid() = user_id);
 
--- Settings policies (allow all operations)
-CREATE POLICY "Allow all operations on settings" ON settings
-  FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Users can manage own settings" ON settings
+  FOR ALL USING (auth.uid() = user_id);
 ```
 
 ## Authentication Setup
