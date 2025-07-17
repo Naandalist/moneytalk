@@ -587,7 +587,6 @@ export default function StatsScreen() {
           onLoadMore={loadMoreTransactions}
           hasMore={hasMoreTransactions}
           loading={loadingMore}
-          showLoadMore={true}
         />
       </ScrollView>
     </View>

@@ -6,6 +6,7 @@ import TransactionCard from './TransactionCard';
 import { Transaction } from '@/types/transaction';
 import { NativeAdCard } from './NativeAdCard';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type TransactionListProps = {
   transactions: Transaction[];
@@ -13,7 +14,6 @@ type TransactionListProps = {
   onLoadMore?: () => void;
   hasMore?: boolean;
   loading?: boolean;
-  showLoadMore?: boolean;
 };
 
 export default function TransactionList({ 
@@ -21,8 +21,7 @@ export default function TransactionList({
   onTransactionPress, 
   onLoadMore, 
   hasMore = false, 
-  loading = false,
-  showLoadMore = false 
+  loading = false
 }: TransactionListProps) {
   const { colors } = useTheme();
   const router = useRouter();
@@ -46,25 +45,26 @@ export default function TransactionList({
     }
   };
 
-  const renderLoadMoreButton = () => {
-    if (!showLoadMore || !hasMore) return null;
+  const renderFooter = () => {
+    if (!hasMore && !loading) return null;
 
     return (
-      <TouchableOpacity
-        style={[styles.loadMoreButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-        onPress={onLoadMore}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator size="small" color={colors.primary} />
-        ) : (
-          <>
-            <Ionicons name="chevron-down" size={20} color={colors.primary} />
-            <Text style={[styles.loadMoreText, { color: colors.primary }]}>Load More</Text>
-          </>
+      <View style={styles.footerContainer}>
+        {loading && (
+          <ActivityIndicator 
+            size="small" 
+            color={colors.primary} 
+            style={styles.loadingIndicator}
+          />
         )}
-      </TouchableOpacity>
+      </View>
     );
+  };
+
+  const handleEndReached = () => {
+    if (hasMore && !loading && onLoadMore) {
+      onLoadMore();
+    }
   };
 
   if (transactions.length === 0) {
@@ -78,7 +78,7 @@ export default function TransactionList({
   }
 
   return (
-    <View>
+    <SafeAreaView>
       <FlatList
         data={transactions}
         keyExtractor={(item) => item.id.toString()}
@@ -92,10 +92,12 @@ export default function TransactionList({
           </View>
         )}
         style={styles.list}
-        scrollEnabled={false}
-      />
-      {renderLoadMoreButton()}
-    </View>
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.1}
+        ListFooterComponent={renderFooter}
+        showsVerticalScrollIndicator={false}
+      />  
+    </SafeAreaView>
   );
 }
 
@@ -115,18 +117,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
-  loadMoreButton: {
-    flexDirection: 'row',
+  footerContainer: {
+    paddingVertical: 20,
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    marginTop: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 8,
   },
-  loadMoreText: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 14,
+  loadingIndicator: {
+    marginVertical: 10,
   },
 });
