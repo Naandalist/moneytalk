@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import Constants from 'expo-constants';
 import { useCurrency } from '@/context/CurrencyContext';
+import { getOpenAIKey, getOpenAIEndpoint, OPENAI_ENDPOINTS } from './openaiConfig';
 // import { useDatabase } from '@/context/DatabaseContext';
 
 interface UseOpenAIOptions {
@@ -13,21 +13,7 @@ export const useOpenAI = (options: UseOpenAIOptions = {}) => {
 //   const { getApiKey } = useDatabase();
     const { selectedCurrency } = useCurrency();
 
-  const getOpenAIKey = async (): Promise<string> => {
-    // First try to get user's custom API key from database
-    // const userApiKey = await getApiKey();
-    // if (userApiKey) {
-    //   return userApiKey;
-    // }
-    
-    // Fallback to app's API key
-    const appApiKey = Constants.expoConfig?.extra?.openaiApiKey;
-    if (!appApiKey) {
-      throw new Error('OpenAI API key not found');
-    }
-    
-    return appApiKey;
-  };
+
 
   const transcribeAudio = async (uri: string): Promise<string> => {
     setIsProcessing(true);
@@ -47,7 +33,7 @@ export const useOpenAI = (options: UseOpenAIOptions = {}) => {
       console.log('Sending request to OpenAI API...');
       console.log('selectedCurrency:', selectedCurrency);
 
-      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      const response = await fetch(getOpenAIEndpoint(OPENAI_ENDPOINTS.AUDIO_TRANSCRIPTIONS), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -95,7 +81,7 @@ export const useOpenAI = (options: UseOpenAIOptions = {}) => {
             const base64data = reader.result as string;
             const base64Image = base64data.split(',')[1];
 
-            const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            const visionResponse = await fetch(getOpenAIEndpoint(OPENAI_ENDPOINTS.CHAT_COMPLETIONS), {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${apiKey}`,
