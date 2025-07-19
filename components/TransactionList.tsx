@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ReactElement } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useRouter } from 'expo-router';
@@ -14,14 +14,20 @@ type TransactionListProps = {
   onLoadMore?: () => void;
   hasMore?: boolean;
   loading?: boolean;
+  headerComponent?:
+    | React.ComponentType<any>
+    | React.ReactElement
+    | null
+    | undefined;
 };
 
-export default function TransactionList({ 
-  transactions, 
-  onTransactionPress, 
-  onLoadMore, 
-  hasMore = false, 
-  loading = false
+export default function TransactionList({
+  transactions,
+  onTransactionPress,
+  onLoadMore,
+  hasMore = false,
+  loading = false,
+  headerComponent
 }: TransactionListProps) {
   const { colors } = useTheme();
   const router = useRouter();
@@ -51,9 +57,9 @@ export default function TransactionList({
     return (
       <View style={styles.footerContainer}>
         {loading && (
-          <ActivityIndicator 
-            size="small" 
-            color={colors.primary} 
+          <ActivityIndicator
+            size="small"
+            color={colors.primary}
             style={styles.loadingIndicator}
           />
         )}
@@ -78,26 +84,25 @@ export default function TransactionList({
   }
 
   return (
-    <SafeAreaView>
-      <FlatList
-        data={transactions}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item, index }) => (
-          <View key={`view-${index}`}>
-            {((index + 1) % 3 === 0 || (transactions.length < 3 && index === 0)) && <NativeAdCard key={index} />}
-            <TransactionCard
-              transaction={item}
-              onPress={() => handleTransactionPress(item)}
-            />
-          </View>
-        )}
-        style={styles.list}
-        onEndReached={handleEndReached}
-        onEndReachedThreshold={0.1}
-        ListFooterComponent={renderFooter}
-        showsVerticalScrollIndicator={false}
-      />  
-    </SafeAreaView>
+    <FlatList
+      data={transactions}
+      keyExtractor={(item) => item.id.toString()}
+      renderItem={({ item, index }) => (
+        <View key={`view-${index}`}>
+          {((index + 1) % 3 === 0 || (transactions.length < 3 && index === 0)) && <NativeAdCard key={index} />}
+          <TransactionCard
+            transaction={item}
+            onPress={() => handleTransactionPress(item)}
+          />
+        </View>
+      )}
+      style={styles.list}
+      onEndReached={handleEndReached}
+      onEndReachedThreshold={0.1}
+      ListHeaderComponent={headerComponent}
+      ListFooterComponent={renderFooter}
+      showsVerticalScrollIndicator={false}
+    />
   );
 }
 

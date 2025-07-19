@@ -48,7 +48,7 @@ export default function StatsScreen() {
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
   const [remainingRefreshes, setRemainingRefreshes] = useState(3);
   const [showRefreshInfo, setShowRefreshInfo] = useState(false);
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
   const [totalTransactions, setTotalTransactions] = useState(0);
@@ -138,13 +138,13 @@ export default function StatsScreen() {
     try {
       const nextPage = currentPage + 1;
       const offset = nextPage * TRANSACTIONS_PER_PAGE;
-      
+
       const moreTransactions = await getTransactionsByPeriod(period, TRANSACTIONS_PER_PAGE, offset);
-      
+
       if (moreTransactions.length > 0) {
         setTransactions(prev => [...prev, ...moreTransactions]);
         setCurrentPage(nextPage);
-        
+
         // Check if there are more transactions
         const hasMore = (nextPage + 1) * TRANSACTIONS_PER_PAGE < totalTransactions;
         setHasMoreTransactions(hasMore);
@@ -284,7 +284,7 @@ export default function StatsScreen() {
     try {
       // Get transactions for timeline calculation with reasonable limit
       const timelineTransactions = await getTransactionsByPeriod(period, 1000); // Limit for performance
-      
+
       const timelineLabels = [];
       const timelineValues = [];
 
@@ -382,6 +382,145 @@ export default function StatsScreen() {
       .reduce((sum, t) => sum + t.amount, 0);
   };
 
+  const renderStatsHeader = () => (
+    <View>
+      {/* Summary cards */}
+      <View style={styles.summaryContainer}>
+        <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Expenses</Text>
+          <Text style={[styles.summaryValue, { color: colors.error }]}>
+            {formatCurrency(getTotalExpenses(), selectedCurrency.code)}
+          </Text>
+        </View>
+
+        <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Income</Text>
+          <Text style={[styles.summaryValue, { color: colors.success }]}>
+            {formatCurrency(getTotalIncome(), selectedCurrency.code)}
+          </Text>
+        </View>
+      </View>
+
+      {/* AI Suggestion Card */}
+      <View style={styles.suggestionHeader}>
+        <View style={styles.titleContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>MoneyTalk AI Suggestion</Text>
+        </View>
+        <View style={styles.refreshContainer}>
+          <Text style={[styles.refreshCount, { color: colors.textSecondary }]}>
+            {remainingRefreshes}/3
+          </Text>
+          <TouchableOpacity
+            onPress={() => setShowRefreshInfo(!showRefreshInfo)}
+            style={styles.infoButton}
+          >
+            <Ionicons
+              name="information-circle-outline"
+              size={16}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleRefreshSuggestion}
+            disabled={loadingSuggestion || remainingRefreshes <= 0}
+            style={[styles.refreshButton, { opacity: (loadingSuggestion || remainingRefreshes <= 0) ? 0.3 : 1 }]}
+          >
+            <Ionicons
+              name="refresh"
+              size={20}
+              color={remainingRefreshes <= 0 ? colors.textSecondary : colors.primary}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+      <View style={[styles.suggestionCard, { backgroundColor: colors.card }]}>
+        {loadingSuggestion ? (
+          <Text style={{ color: colors.textSecondary }}>Loading suggestion...</Text>
+        ) : (
+          <Text style={[styles.suggestionText, { color: colors.textSecondary }]}>{suggestion}</Text>
+        )}
+        {showRefreshInfo && (
+          <Text style={[styles.suggestionSubTitle, { color: colors.textSecondary }]}>-- Refreshed every 24 hours or tap refresh button (3 manual refreshes per day)</Text>
+        )}
+      </View>
+
+      <NativeAdCard />
+      {/* Category breakdown */}
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Spending by Category</Text>
+
+      {categoryData.length > 0 ? (
+        <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
+          <PieChart
+            key={`pie-chart-${isDark}`}
+            data={categoryData}
+            width={screenWidth - 32}
+            height={220}
+            chartConfig={{
+              color: (opacity = 1) => `rgba(${isDark ? '255, 255, 255' : '33, 33, 33'}, ${opacity})`,
+              labelColor: (opacity = 1) => colors.text,
+            }}
+            accessor="amount"
+            backgroundColor="transparent"
+            paddingLeft="15"
+            absolute
+          />
+        </View>
+      ) : (
+        <View style={[styles.emptyChart, { backgroundColor: colors.card }]}>
+          <Text style={[styles.emptyChartText, { color: colors.textSecondary }]}>
+            No expense data for this period
+          </Text>
+        </View>
+      )}
+
+      {/* Timeline chart */}
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Spending Timeline</Text>
+
+      {timelineData.datasets[0].data.some(value => value > 0) ? (
+        <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
+          <LineChart
+            key={`line-chart-${isDark}`}
+            data={timelineData}
+            width={screenWidth - 32}
+            height={220}
+            chartConfig={{
+              backgroundColor: colors.card,
+              backgroundGradientFrom: colors.card,
+              backgroundGradientTo: colors.card,
+              decimalPlaces: 0,
+              color: (opacity = 1) => `rgba(106, 90, 205, ${opacity})`,
+              labelColor: (opacity = 1) => colors.text,
+              style: {
+                borderRadius: 16,
+              },
+              propsForDots: {
+                r: "6",
+                strokeWidth: "2",
+                stroke: colors.primary
+              }
+            }}
+            bezier
+            style={{
+              marginVertical: 8,
+              borderRadius: 16
+            }}
+          />
+        </View>
+      ) : (
+        <View style={[styles.emptyChart, { backgroundColor: colors.card }]}>
+          <Text style={[styles.emptyChartText, { color: colors.textSecondary }]}>
+            No expense data for this period
+          </Text>
+        </View>
+      )}
+
+      {/* Transactions list */}
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>
+        Transactions
+      </Text>
+    </View>
+  )
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <Text style={[styles.header, { color: colors.text }]}>
@@ -442,153 +581,17 @@ export default function StatsScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Summary cards */}
-        <View style={styles.summaryContainer}>
-          <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Expenses</Text>
-            <Text style={[styles.summaryValue, { color: colors.error }]}>
-              {formatCurrency(getTotalExpenses(), selectedCurrency.code)}
-            </Text>
-          </View>
-
-          <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Income</Text>
-            <Text style={[styles.summaryValue, { color: colors.success }]}>
-              {formatCurrency(getTotalIncome(), selectedCurrency.code)}
-            </Text>
-          </View>
+      <View style={styles.scrollView}>
+        <View style={styles.scrollContent}>
+          <TransactionList
+            headerComponent={renderStatsHeader}
+            transactions={transactions}
+            onLoadMore={loadMoreTransactions}
+            hasMore={hasMoreTransactions}
+            loading={loadingMore}
+          />
         </View>
-
-        {/* AI Suggestion Card */}
-        <View style={styles.suggestionHeader}>
-          <View style={styles.titleContainer}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>MoneyTalk AI Suggestion</Text>
-          </View>
-          <View style={styles.refreshContainer}>
-            <Text style={[styles.refreshCount, { color: colors.textSecondary }]}>
-              {remainingRefreshes}/3
-            </Text>
-            <TouchableOpacity
-              onPress={() => setShowRefreshInfo(!showRefreshInfo)}
-              style={styles.infoButton}
-            >
-              <Ionicons
-                name="information-circle-outline"
-                size={16}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleRefreshSuggestion}
-              disabled={loadingSuggestion || remainingRefreshes <= 0}
-              style={[styles.refreshButton, { opacity: (loadingSuggestion || remainingRefreshes <= 0) ? 0.3 : 1 }]}
-            >
-              <Ionicons
-                name="refresh"
-                size={20}
-                color={remainingRefreshes <= 0 ? colors.textSecondary : colors.primary}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-        <View style={[styles.suggestionCard, { backgroundColor: colors.card }]}>
-          {loadingSuggestion ? (
-            <Text style={{ color: colors.textSecondary }}>Loading suggestion...</Text>
-          ) : (
-            <Text style={[styles.suggestionText, { color: colors.textSecondary }]}>{suggestion}</Text>
-          )}
-          {showRefreshInfo && (
-            <Text style={[styles.suggestionSubTitle, { color: colors.textSecondary }]}>-- Refreshed every 24 hours or tap refresh button (3 manual refreshes per day)</Text>
-          )}
-        </View>
-
-        <NativeAdCard />
-        {/* Category breakdown */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Spending by Category</Text>
-
-        {categoryData.length > 0 ? (
-          <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
-            <PieChart
-              key={`pie-chart-${isDark}`}
-              data={categoryData}
-              width={screenWidth - 32}
-              height={220}
-              chartConfig={{
-                color: (opacity = 1) => `rgba(${isDark ? '255, 255, 255' : '33, 33, 33'}, ${opacity})`,
-                labelColor: (opacity = 1) => colors.text,
-              }}
-              accessor="amount"
-              backgroundColor="transparent"
-              paddingLeft="15"
-              absolute
-            />
-          </View>
-        ) : (
-          <View style={[styles.emptyChart, { backgroundColor: colors.card }]}>
-            <Text style={[styles.emptyChartText, { color: colors.textSecondary }]}>
-              No expense data for this period
-            </Text>
-          </View>
-        )}
-
-        {/* Timeline chart */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Spending Timeline</Text>
-
-        {timelineData.datasets[0].data.some(value => value > 0) ? (
-          <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
-            <LineChart
-              key={`line-chart-${isDark}`}
-              data={timelineData}
-              width={screenWidth - 32}
-              height={220}
-              chartConfig={{
-                backgroundColor: colors.card,
-                backgroundGradientFrom: colors.card,
-                backgroundGradientTo: colors.card,
-                decimalPlaces: 0,
-                color: (opacity = 1) => `rgba(106, 90, 205, ${opacity})`,
-                labelColor: (opacity = 1) => colors.text,
-                style: {
-                  borderRadius: 16,
-                },
-                propsForDots: {
-                  r: "6",
-                  strokeWidth: "2",
-                  stroke: colors.primary
-                }
-              }}
-              bezier
-              style={{
-                marginVertical: 8,
-                borderRadius: 16
-              }}
-            />
-          </View>
-        ) : (
-          <View style={[styles.emptyChart, { backgroundColor: colors.card }]}>
-            <Text style={[styles.emptyChartText, { color: colors.textSecondary }]}>
-              No expense data for this period
-            </Text>
-          </View>
-        )}
-
-        {/* Transactions list */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Transactions
-        </Text>
-
-        <TransactionList 
-          transactions={transactions}
-          onLoadMore={loadMoreTransactions}
-          hasMore={hasMoreTransactions}
-          loading={loadingMore}
-        />
-      </ScrollView>
+      </View>
     </View>
   );
 }
