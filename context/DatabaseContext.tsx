@@ -13,8 +13,9 @@ type DatabaseContextType = {
   updateTransaction: (transaction: Transaction) => Promise<boolean>;
   getRecentTransactions: (limit: number) => Promise<Transaction[]>;
   getAllTransactions: () => Promise<Transaction[]>;
-  getTransactionsByCategory: (period: string) => Promise<any[]>;
-  getTransactionsByPeriod: (period: string) => Promise<Transaction[]>;
+  getTransactionsByCategory: (period: string, limit?: number) => Promise<any[]>;
+  getTransactionsByPeriod: (period: string, limit?: number, offset?: number) => Promise<Transaction[]>;
+  getTransactionCount: (period?: string) => Promise<number>;
   getBalance: () => Promise<{ income: number, expenses: number }>;
   clearAllTransactions: () => Promise<void>;
   deleteTransaction: (id: number) => Promise<void>;
@@ -43,6 +44,7 @@ const DatabaseContext = createContext<DatabaseContextType>({
   getAllTransactions: async () => [],
   getTransactionsByCategory: async () => [],
   getTransactionsByPeriod: async () => [],
+  getTransactionCount: async () => 0,
   getBalance: async () => ({ income: 0, expenses: 0 }),
   clearAllTransactions: async () => { },
   deleteTransaction: async () => { },
@@ -431,15 +433,24 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const getAllTransactions = async (): Promise<Transaction[]> => {
+  const getAllTransactions = async (limit?: number, offset?: number): Promise<Transaction[]> => {
     try {
       const userId = await getUserId();
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('transactions')
         .select('*')
         .eq('user_id', userId)
         .order('date', { ascending: false });
+
+      if (limit) {
+        query = query.limit(limit);
+      }
+      if (offset) {
+        query = query.range(offset, offset + (limit || 50) - 1);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error getting transactions from Supabase:', error);
@@ -460,7 +471,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const getTransactionsByPeriod = async (period: string): Promise<Transaction[]> => {
+  const getTransactionsByPeriod = async (period: string, limit?: number, offset?: number): Promise<Transaction[]> => {
     try {
       // Use current time in user's timezone, then convert to UTC for database comparison
       const now = new Date(getCurrentDateInTimezone());
@@ -479,18 +490,27 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         yearAgo.setFullYear(now.getFullYear() - 1);
         dateThreshold = yearAgo.toISOString();
       } else {
-        // If no specific period, return all transactions
-        return await getAllTransactions();
+        // If no specific period, return all transactions with pagination
+        return await getAllTransactions(limit, offset);
       }
 
       const userId = await getUserId();
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('transactions')
         .select('*')
         .eq('user_id', userId)
         .gte('date', dateThreshold)
         .order('date', { ascending: false });
+
+      if (limit) {
+        query = query.limit(limit);
+      }
+      if (offset) {
+        query = query.range(offset, offset + (limit || 50) - 1);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error getting transactions by period from Supabase:', error);
@@ -511,7 +531,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const getTransactionsByCategory = async (period: string): Promise<any[]> => {
+  const getTransactionsByCategory = async (period: string, limit?: number): Promise<any[]> => {
     try {
       // Use current time in user's timezone, then convert to UTC for database comparison
       const now = new Date(getCurrentDateInTimezone());
@@ -544,6 +564,8 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         query = query.gte('date', dateThreshold);
       }
 
+      // For category aggregation, we need all data to properly group
+      // But we can limit the result set after grouping
       const { data, error } = await query;
 
       if (error) {
@@ -572,9 +594,61 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
 
       // Convert to array and sort by amount
-      return Array.from(categoryMap.values()).sort((a, b) => b.amount - a.amount);
+      const sortedCategories = Array.from(categoryMap.values()).sort((a, b) => b.amount - a.amount);
+      
+      // Apply limit if specified (for chart optimization)
+      return limit ? sortedCategories.slice(0, limit) : sortedCategories;
     } catch (error) {
       console.error('Error getting transactions by category:', error);
+      throw error;
+    }
+  };
+
+  const getTransactionCount = async (period?: string): Promise<number> => {
+    try {
+      const userId = await getUserId();
+      
+      let query = supabase
+        .from('transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId);
+
+      if (period) {
+        const now = new Date(getCurrentDateInTimezone());
+        let dateThreshold: string;
+
+        if (period === 'week') {
+          const weekAgo = new Date(now);
+          weekAgo.setDate(now.getDate() - 7);
+          dateThreshold = weekAgo.toISOString();
+        } else if (period === 'month') {
+          const monthAgo = new Date(now);
+          monthAgo.setMonth(now.getMonth() - 1);
+          dateThreshold = monthAgo.toISOString();
+        } else if (period === 'year') {
+          const yearAgo = new Date(now);
+          yearAgo.setFullYear(now.getFullYear() - 1);
+          dateThreshold = yearAgo.toISOString();
+        } else {
+          // Invalid period, return total count
+          const { count, error } = await query;
+          if (error) throw error;
+          return count || 0;
+        }
+
+        query = query.gte('date', dateThreshold);
+      }
+
+      const { count, error } = await query;
+
+      if (error) {
+        console.error('Error getting transaction count from Supabase:', error);
+        throw error;
+      }
+
+      return count || 0;
+    } catch (error) {
+      console.error('Error getting transaction count:', error);
       throw error;
     }
   };
@@ -986,6 +1060,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       getAllTransactions,
       getTransactionsByCategory,
       getTransactionsByPeriod,
+      getTransactionCount,
       getBalance,
       clearAllTransactions,
       deleteTransaction,

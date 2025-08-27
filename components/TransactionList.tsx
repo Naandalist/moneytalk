@@ -1,17 +1,34 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import React, { ReactElement } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useRouter } from 'expo-router';
 import TransactionCard from './TransactionCard';
 import { Transaction } from '@/types/transaction';
 import { NativeAdCard } from './NativeAdCard';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type TransactionListProps = {
   transactions: Transaction[];
   onTransactionPress?: (transaction: Transaction) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loading?: boolean;
+  headerComponent?:
+    | React.ComponentType<any>
+    | React.ReactElement
+    | null
+    | undefined;
 };
 
-export default function TransactionList({ transactions, onTransactionPress }: TransactionListProps) {
+export default function TransactionList({
+  transactions,
+  onTransactionPress,
+  onLoadMore,
+  hasMore = false,
+  loading = false,
+  headerComponent
+}: TransactionListProps) {
   const { colors } = useTheme();
   const router = useRouter();
 
@@ -31,6 +48,28 @@ export default function TransactionList({ transactions, onTransactionPress }: Tr
           transactionData: JSON.stringify(transaction)
         }
       });
+    }
+  };
+
+  const renderFooter = () => {
+    if (!hasMore && !loading) return null;
+
+    return (
+      <View style={styles.footerContainer}>
+        {loading && (
+          <ActivityIndicator
+            size="small"
+            color={colors.primary}
+            style={styles.loadingIndicator}
+          />
+        )}
+      </View>
+    );
+  };
+
+  const handleEndReached = () => {
+    if (hasMore && !loading && onLoadMore) {
+      onLoadMore();
     }
   };
 
@@ -58,7 +97,11 @@ export default function TransactionList({ transactions, onTransactionPress }: Tr
         </View>
       )}
       style={styles.list}
-      scrollEnabled={false}
+      onEndReached={handleEndReached}
+      onEndReachedThreshold={0.1}
+      ListHeaderComponent={headerComponent}
+      ListFooterComponent={renderFooter}
+      showsVerticalScrollIndicator={false}
     />
   );
 }
@@ -78,5 +121,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     fontSize: 16,
     textAlign: 'center',
+  },
+  footerContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  loadingIndicator: {
+    marginVertical: 10,
   },
 });
