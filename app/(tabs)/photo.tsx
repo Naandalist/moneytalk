@@ -10,7 +10,7 @@ import TransactionConfirmation from '@/components/TransactionConfirmation';
 import CustomNotification from '@/components/CustomNotification';
 import { NativeAdComponent } from '@/components/NativeAdComponent';
 import { useNotification } from '@/hooks/useNotification';
-import { useOpenAI } from '@/utils/useOpenAI';
+import { useAI } from '@/utils/useAI';
 import { useTransactionProcessor } from '@/hooks/useTransactionProcessor';
 import * as Haptics from 'expo-haptics';
 import { useAdMob } from '@/utils/admob';
@@ -29,8 +29,13 @@ export default function PhotoCaptureScreen() {
     const [showAuthModal, setShowAuthModal] = useState(false);
 
     // Custom hooks
-    const { analyzeImage } = useOpenAI({
-        onError: (error) => showError('Error', error)
+    const { analyzeImage } = useAI({
+        onError: (error) => showError('Error', error),
+        onFallback: (provider) => {
+            if (provider === 'openai') {
+                console.log('Using OpenAI as backup for image analysis');
+            }
+        }
     });
     const {
         parsedTransaction,

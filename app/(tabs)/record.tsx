@@ -11,7 +11,7 @@ import TransactionConfirmation from '@/components/TransactionConfirmation';
 import CustomNotification from '@/components/CustomNotification';
 import { NativeAdComponent } from '@/components/NativeAdComponent';
 import { useNotification } from '@/hooks/useNotification';
-import { useOpenAI } from '@/utils/useOpenAI';
+import { useAI } from '@/utils/useAI';
 import { useTransactionProcessor } from '@/hooks/useTransactionProcessor';
 import { useAdMob } from '@/utils/admob';
 import { router } from 'expo-router';
@@ -26,8 +26,13 @@ export default function RecordScreen() {
   const { notification, hideNotification, showWarning, showSuccess, showError } = useNotification();
 
   // Custom hooks
-  const { transcribeAudio, isProcessing } = useOpenAI({
-    onError: (error) => showError('Processing Error', error)
+  const { transcribeAudio, isProcessing } = useAI({
+    onError: (error) => showError('Processing Error', error),
+    onFallback: (provider) => {
+      if (provider === 'openai') {
+        showWarning('Fallback', 'Using OpenAI as backup service');
+      }
+    }
   });
   const {
     parsedTransaction,

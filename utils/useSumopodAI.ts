@@ -3,52 +3,55 @@ import { useCurrency } from '@/context/CurrencyContext';
 import Constants from 'expo-constants';
 import { AI_PROMPTS } from './aiPrompts';
 
-interface UseOpenAIOptions {
+interface UseSumopodAIOptions {
   onSuccess?: (result: any) => void;
   onError?: (error: string) => void;
 }
 
 /**
- * Hook for OpenAI API integration
- * Provides audio transcription and image analysis functionality using OpenAI services
+ * Hook for Sumopod AI API integration
+ * Provides audio transcription and image analysis functionality using Sumopod AI services
  */
-export const useOpenAI = (options: UseOpenAIOptions = {}) => {
+export const useSumopodAI = (options: UseSumopodAIOptions = {}) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const { selectedCurrency } = useCurrency();
 
   /**
-   * Get OpenAI API key from environment variables
+   * Get Sumopod AI API key from environment variables
    */
-  const getOpenAIKey = async (): Promise<string> => {
-    const apiKey = Constants.expoConfig?.extra?.openaiApiKey;
+  const getSumopodAIKey = async (): Promise<string> => {
+    const apiKey = Constants.expoConfig?.extra?.sumopodAiApiKey;
     if (!apiKey) {
-      throw new Error('OpenAI API key not found');
+      throw new Error('Sumopod AI API key not found');
     }
     return apiKey;
   };
 
   /**
-   * Get OpenAI API endpoint URL
+   * Get Sumopod AI API endpoint URL
    */
-  const getOpenAIEndpoint = (endpoint: string): string => {
-    const baseUrl = 'https://api.openai.com';
+  const getSumopodAIEndpoint = (endpoint: string): string => {
+    const baseUrl = Constants.expoConfig?.extra?.sumopodAiBaseUrl || 'https://api.sumopod.ai';
     return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
   };
 
   /**
-   * OpenAI API endpoints
+   * Sumopod AI API endpoints
    */
-  const OPENAI_ENDPOINTS = {
+  const SUMOPOD_ENDPOINTS = {
     CHAT_COMPLETIONS: '/v1/chat/completions',
     AUDIO_TRANSCRIPTIONS: '/v1/audio/transcriptions',
   } as const;
 
-
-
+  /**
+   * Transcribe audio using Sumopod AI
+   * @param uri - Audio file URI
+   * @returns Promise<string> - Transcribed text
+   */
   const transcribeAudio = async (uri: string): Promise<string> => {
     setIsProcessing(true);
     try {
-      const apiKey = await getOpenAIKey();
+      const apiKey = await getSumopodAIKey();
       
       const formData = new FormData();
       formData.append('file', {
@@ -60,10 +63,10 @@ export const useOpenAI = (options: UseOpenAIOptions = {}) => {
       formData.append('response_format', 'json');
       formData.append('language', selectedCurrency.language || 'en');
 
-      console.log('Sending request to OpenAI API...');
+      console.log('Sending request to Sumopod AI API...');
       console.log('selectedCurrency:', selectedCurrency);
 
-      const response = await fetch(getOpenAIEndpoint(OPENAI_ENDPOINTS.AUDIO_TRANSCRIPTIONS), {
+      const response = await fetch(getSumopodAIEndpoint(SUMOPOD_ENDPOINTS.AUDIO_TRANSCRIPTIONS), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -73,18 +76,18 @@ export const useOpenAI = (options: UseOpenAIOptions = {}) => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`OpenAI API error: ${errorData.error?.message || response.status}`);
+        throw new Error(`Sumopod AI API error: ${errorData.error?.message || response.status}`);
       }
 
       const result = await response.json();
-      console.log('Transcription result:', result);
+      console.log('Sumopod transcription result:', result);
       const text = result.text || 'No transcription available';
       
       options.onSuccess?.(text);
       return text;
     } catch (error) {
-      console.error('Transcription error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unable to transcribe audio. Please try again.';
+      console.error('Sumopod transcription error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unable to transcribe audio with Sumopod. Please try again.';
       options.onError?.(errorMessage);
       
       if (__DEV__) {
@@ -96,10 +99,15 @@ export const useOpenAI = (options: UseOpenAIOptions = {}) => {
     }
   };
 
+  /**
+   * Analyze image using Sumopod AI
+   * @param imageUri - Image URI to analyze
+   * @returns Promise<any> - Analysis result
+   */
   const analyzeImage = async (imageUri: string): Promise<any> => {
     setIsProcessing(true);
     try {
-      const apiKey = await getOpenAIKey();
+      const apiKey = await getSumopodAIKey();
       
       const response = await fetch(imageUri);
       const blob = await response.blob();
@@ -111,7 +119,7 @@ export const useOpenAI = (options: UseOpenAIOptions = {}) => {
             const base64data = reader.result as string;
             const base64Image = base64data.split(',')[1];
 
-            const visionResponse = await fetch(getOpenAIEndpoint(OPENAI_ENDPOINTS.CHAT_COMPLETIONS), {
+            const visionResponse = await fetch(getSumopodAIEndpoint(SUMOPOD_ENDPOINTS.CHAT_COMPLETIONS), {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${apiKey}`,
@@ -136,7 +144,7 @@ export const useOpenAI = (options: UseOpenAIOptions = {}) => {
             });
 
             if (!visionResponse.ok) {
-              throw new Error('Failed to analyze receipt');
+              throw new Error('Failed to analyze receipt with Sumopod AI');
             }
 
             const result = await visionResponse.json();
@@ -162,15 +170,15 @@ export const useOpenAI = (options: UseOpenAIOptions = {}) => {
             options.onSuccess?.(parsedResult);
             resolve(parsedResult);
           } catch (error) {
-            options.onError?.('Failed to analyze receipt. Please try again.');
+            options.onError?.('Failed to analyze receipt with Sumopod AI. Please try again.');
             reject(error);
           }
         };
         reader.readAsDataURL(blob);
       });
     } catch (error) {
-      console.error('Error processing image:', error);
-      options.onError?.('Failed to process image. Please try again.');
+      console.error('Error processing image with Sumopod AI:', error);
+      options.onError?.('Failed to process image with Sumopod AI. Please try again.');
       throw error;
     } finally {
       setIsProcessing(false);
@@ -181,6 +189,6 @@ export const useOpenAI = (options: UseOpenAIOptions = {}) => {
     isProcessing,
     transcribeAudio,
     analyzeImage,
-    getOpenAIKey
+    getSumopodAIKey
   };
 };
