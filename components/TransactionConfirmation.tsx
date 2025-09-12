@@ -5,7 +5,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { useAuth } from '@/context/AuthContext';
 import { Transaction } from '@/types/transaction';
-import { Check, X, Save, Calendar, Clock } from 'lucide-react-native';
+import { X, Save, Calendar, Clock, RefreshCw } from 'lucide-react-native';
 import { categoryList, getCategoryIcon } from '@/utils/categories';
 import { formatCurrency } from 'react-native-format-currency';
 import { NativeAdComponent } from './NativeAdComponent';
@@ -17,12 +17,14 @@ type TransactionConfirmationProps = {
   transaction: Transaction;
   onSave: (transaction: Transaction) => void;
   onCancel: () => void;
+  onRetryAnalyze?: () => void;
 };
 
 export default function TransactionConfirmation({
   transaction,
   onSave,
-  onCancel
+  onCancel,
+  onRetryAnalyze
 }: TransactionConfirmationProps) {
   const { colors } = useTheme();
   const { selectedCurrency } = useCurrency();
@@ -456,7 +458,14 @@ export default function TransactionConfirmation({
           onPress={onCancel}
         >
           <X size={20} color={colors.text} />
-          <Text style={[styles.buttonText, { color: colors.text }]}>Cancel</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, styles.retryButton, { backgroundColor: colors.primary }]}
+          onPress={onRetryAnalyze}
+        >
+          <RefreshCw size={20} color={colors.white} />
+          <Text style={[styles.buttonText, { color: colors.white }]}>Retry</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -621,6 +630,7 @@ const styles = StyleSheet.create({
   cancelButton: {
     borderWidth: 1,
   },
+  retryButton: {},
   saveButton: {},
   buttonText: {
     fontFamily: 'Inter-Medium',

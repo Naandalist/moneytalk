@@ -11,7 +11,7 @@ import TransactionConfirmation from '@/components/TransactionConfirmation';
 import CustomNotification from '@/components/CustomNotification';
 import { NativeAdComponent } from '@/components/NativeAdComponent';
 import { useNotification } from '@/hooks/useNotification';
-import { useOpenAI } from '@/utils/useOpenAI';
+import { useAI } from '@/utils/useAI';
 import { useTransactionProcessor } from '@/hooks/useTransactionProcessor';
 import { useAdMob } from '@/utils/admob';
 import { router } from 'expo-router';
@@ -26,8 +26,13 @@ export default function RecordScreen() {
   const { notification, hideNotification, showWarning, showSuccess, showError } = useNotification();
 
   // Custom hooks
-  const { transcribeAudio, isProcessing } = useOpenAI({
-    onError: (error) => showError('Processing Error', error)
+  const { transcribeAudio, isProcessing } = useAI({
+    onError: (error) => showError('Processing Error', error),
+    onFallback: (provider) => {
+      if (provider === 'openai') {
+        showWarning('Fallback', 'Using OpenAI as backup service');
+      }
+    }
   });
   const {
     parsedTransaction,
@@ -41,6 +46,7 @@ export default function RecordScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [transcription, setTranscription] = useState('');
+  const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Cleanup timer on unmount
@@ -118,6 +124,9 @@ export default function RecordScreen() {
         throw new Error('Recording URI is null');
       }
 
+      // Store the recording URI for potential retry
+      setRecordingUri(uri);
+
       // Transcribe and process
       const text = await transcribeAudio(uri);
       setTranscription(text);
@@ -145,7 +154,39 @@ export default function RecordScreen() {
 
   const handleCancel = () => {
     setTranscription('');
+    setRecordingUri(null);
     cancelTransaction();
+  };
+
+  /**
+   * Handle retry analysis - re-transcribe the audio and re-process
+   */
+  const handleRetryAnalyze = async () => {
+    console.log('🔄 Retry button clicked - starting retry analysis for audio');
+    
+    if (!recordingUri) {
+      console.log('❌ No recording available for retry analysis');
+      showError('Error', 'No audio recording available for re-analysis');
+      return;
+    }
+    
+    console.log('🧹 Clearing current data and re-transcribing audio from URI:', recordingUri);
+    
+    try {
+      // Clear current data
+      cancelTransaction();
+      setTranscription('');
+      
+      // Re-transcribe the audio and process the new transcription
+      const newTranscription = await transcribeAudio(recordingUri);
+      setTranscription(newTranscription);
+      await processTranscription(newTranscription);
+      
+      console.log('✅ Retry analysis completed with new transcription:', newTranscription);
+    } catch (error) {
+      console.error('Error retrying audio analysis:', error);
+      showError('Error', 'Failed to re-analyze audio recording. Please try again.');
+    }
   };
 
   return (
@@ -159,6 +200,7 @@ export default function RecordScreen() {
           transaction={parsedTransaction}
           onSave={handleSaveTransaction}
           onCancel={handleCancel}
+          onRetryAnalyze={handleRetryAnalyze}
         />
       ) : (
         <View style={styles.recordingContainer}>

@@ -10,7 +10,7 @@ import TransactionConfirmation from '@/components/TransactionConfirmation';
 import CustomNotification from '@/components/CustomNotification';
 import { NativeAdComponent } from '@/components/NativeAdComponent';
 import { useNotification } from '@/hooks/useNotification';
-import { useOpenAI } from '@/utils/useOpenAI';
+import { useAI } from '@/utils/useAI';
 import { useTransactionProcessor } from '@/hooks/useTransactionProcessor';
 import * as Haptics from 'expo-haptics';
 import { useAdMob } from '@/utils/admob';
@@ -29,8 +29,13 @@ export default function PhotoCaptureScreen() {
     const [showAuthModal, setShowAuthModal] = useState(false);
 
     // Custom hooks
-    const { analyzeImage } = useOpenAI({
-        onError: (error) => showError('Error', error)
+    const { analyzeImage } = useAI({
+        onError: (error) => showError('Error', error),
+        onFallback: (provider) => {
+            if (provider === 'openai') {
+                console.log('Using OpenAI as backup for image analysis');
+            }
+        }
     });
     const {
         parsedTransaction,
@@ -68,6 +73,10 @@ export default function PhotoCaptureScreen() {
         }
     };
 
+    /**
+     * Analyze receipt image using AI
+     * This function handles both initial analysis and retry attempts
+     */
     const analyzeReceipt = async () => {
         if (!selectedImage) return;
 
@@ -115,6 +124,50 @@ export default function PhotoCaptureScreen() {
         } catch (error) {
             console.error('Error analyzing receipt:', error);
             showError('Error', 'Failed to analyze receipt. Please try again.');
+            setIsProcessing(false);
+        }
+    };
+
+    /**
+     * Handle retry analysis - re-run AI analysis on the current image with fresh processing
+     */
+    const handleRetryAnalyze = async () => {
+        console.log('🔄 Retry button clicked - starting fresh image analysis');
+        
+        if (!selectedImage) {
+            console.log('❌ No image selected for retry analysis');
+            showError('Error', 'No image selected for analysis');
+            return;
+        }
+        
+        console.log('🧹 Clearing parsed transaction and re-analyzing image from scratch...');
+        
+        try {
+            // Clear current parsed transaction to ensure fresh analysis
+            setParsedTransaction(null);
+            setIsProcessing(true);
+            
+            // Perform fresh AI analysis using the existing image
+            console.log('🤖 Starting fresh AI analysis...');
+            const parsedResult = await analyzeImage(selectedImage);
+            console.log('✅ Fresh analysis completed:', parsedResult);
+            
+            const transaction: Transaction = {
+                id: 0,
+                amount: Math.abs(parsedResult.amount || 0),
+                category: parsedResult.category || 'other',
+                type: parsedResult.type || 'expense',
+                description: parsedResult.description || 'Receipt transaction',
+                date: new Date().toISOString(),
+                imageUrl: uploadedImageUrl || undefined, // Use existing uploaded image URL
+            };
+
+            setParsedTransaction(transaction);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setIsProcessing(false);
+        } catch (error) {
+            console.error('Error during retry analysis:', error);
+            showError('Error', 'Failed to re-analyze receipt. Please try again.');
             setIsProcessing(false);
         }
     };
@@ -191,6 +244,7 @@ export default function PhotoCaptureScreen() {
                         transaction={parsedTransaction}
                         onSave={handleSaveTransaction}
                         onCancel={handleCancel}
+                        onRetryAnalyze={handleRetryAnalyze}
                     />
                 ) : selectedImage ? (
                     <View style={styles.imageContainer}>
